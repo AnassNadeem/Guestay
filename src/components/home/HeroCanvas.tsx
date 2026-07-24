@@ -1,0 +1,84 @@
+"use client";
+
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
+
+const HeroScene = dynamic(
+  () => import("@/components/three/HeroScene").then((m) => m.HeroScene),
+  { ssr: false },
+);
+
+function shouldUse3D(): boolean {
+  if (typeof window === "undefined") return false;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const coarse = window.matchMedia("(pointer: coarse)").matches;
+  const narrow = window.innerWidth < 768;
+  const saveData =
+    "connection" in navigator &&
+    Boolean(
+      (navigator as Navigator & { connection?: { saveData?: boolean } })
+        .connection?.saveData,
+    );
+  return !(reduced || coarse || narrow || saveData);
+}
+
+export function HeroCanvas() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [inView, setInView] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setEnabled(shouldUse3D());
+    setReady(true);
+
+    const onChange = () => setEnabled(shouldUse3D());
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    mq.addEventListener("change", onChange);
+    window.addEventListener("resize", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+      window.removeEventListener("resize", onChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(entry.isIntersecting),
+      { rootMargin: "80px", threshold: 0.05 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const show3D = ready && enabled && inView;
+
+  return (
+    <div
+      ref={ref}
+      className="relative aspect-square w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-cream-100 via-cream-200 to-sage-100 shadow-soft"
+      aria-hidden
+    >
+      <div className="pointer-events-none absolute inset-0 bg-grain opacity-60" />
+      {!show3D && (
+        <div className="absolute inset-0 flex items-center justify-center p-12">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/mark.svg"
+            alt=""
+            width={280}
+            height={240}
+            className="h-auto w-[68%] object-contain drop-shadow-sm"
+          />
+        </div>
+      )}
+      {show3D && (
+        <div className="absolute inset-0">
+          <HeroScene />
+        </div>
+      )}
+    </div>
+  );
+}
