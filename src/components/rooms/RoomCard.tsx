@@ -1,34 +1,23 @@
 "use client";
 
-import { Badge } from "@/components/ui/Badge";
 import { formatCurrency } from "@/lib/utils";
-import type { AvailabilityStatus, Room } from "@/types";
+import type { Room } from "@/types";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 
-const availabilityLabel: Record<AvailabilityStatus, string> = {
-  available: "Available",
-  limited: "Limited",
-  waitlist: "Waitlist",
-  booked: "Booked",
-};
-
 const typeLabel: Record<Room["type"], string> = {
-  private: "Private",
   shared: "Shared",
-  studio: "Studio",
-  suite: "Suite",
+  personal: "Personal",
+  flat: "2-Bedroom Flat",
 };
 
 export function RoomCard({
   room,
   index = 0,
-  featured = false,
 }: {
   room: Room;
   index?: number;
-  featured?: boolean;
 }) {
   return (
     <motion.div
@@ -42,71 +31,65 @@ export function RoomCard({
       }}
       className="h-full"
     >
-      <Link href={`/rooms/${room.slug}`} className="group block h-full">
-        <article className="flex h-full flex-col overflow-hidden rounded-card bg-white shadow-soft transition-all duration-300 ease-brand hover:-translate-y-0.5 hover:shadow-lift">
-          <div
-            className={`relative overflow-hidden bg-cream-200 ${
-              featured
-                ? "aspect-[4/5] sm:aspect-[5/4] lg:min-h-[32rem] lg:flex-1 lg:aspect-auto"
-                : "aspect-[4/3]"
-            }`}
-          >
+      <article className="flex h-full flex-col overflow-hidden rounded-card bg-white/70 shadow-soft transition-all duration-300 ease-brand hover:-translate-y-0.5 hover:shadow-lift">
+        <Link href={`/rooms/${room.slug}`} className="group block">
+          <div className="relative aspect-[4/3] overflow-hidden bg-cream-200">
             <Image
               src={room.coverImage}
               alt={room.name}
               fill
-              sizes={
-                featured
-                  ? "(max-width: 1024px) 100vw, 50vw"
-                  : "(max-width: 768px) 100vw, 33vw"
-              }
+              sizes="(max-width: 768px) 100vw, 33vw"
               className="object-cover transition-transform duration-500 ease-brand group-hover:scale-[1.03]"
             />
-            <div className="absolute left-3 top-3 flex gap-2">
-              <Badge tone="cream">{typeLabel[room.type]}</Badge>
-              <Badge tone={room.availability}>
-                {availabilityLabel[room.availability]}
-              </Badge>
+            <div className="absolute left-3 top-3">
+              <span className="inline-flex items-center rounded-soft bg-cream/95 px-2.5 py-1 text-xs font-medium text-olive">
+                {typeLabel[room.type]}
+              </span>
             </div>
           </div>
-          <div className={`flex flex-col gap-3 ${featured ? "p-6 md:p-7" : "p-5"}`}>
-            <div>
-              <h3
-                className={`font-display font-semibold text-ink ${
-                  featured ? "text-2xl md:text-3xl" : "text-xl"
-                }`}
+        </Link>
+
+        <div className="flex flex-1 flex-col gap-4 p-5 md:p-6">
+          <div>
+            <h3 className="font-display text-xl font-semibold text-ink">
+              <Link
+                href={`/rooms/${room.slug}`}
+                className="transition-colors hover:text-olive-700"
               >
                 {room.name}
-              </h3>
-              <p
-                className={`mt-1.5 leading-relaxed text-ink-muted ${
-                  featured ? "line-clamp-3 text-base" : "line-clamp-2 text-sm"
-                }`}
-              >
-                {room.tagline}
-              </p>
-            </div>
-            <div className="mt-auto flex items-end justify-between border-t border-olive/5 pt-4">
-              <div>
-                <p className="font-mono text-xs uppercase tracking-wide text-ink-soft">
-                  From
-                </p>
-                <p className="font-mono text-lg font-medium text-olive">
-                  {formatCurrency(room.pricePerNight)}
-                  <span className="text-sm font-normal text-ink-soft">
-                    {" "}
-                    / night
-                  </span>
-                </p>
-              </div>
-              <p className="text-sm text-ink-muted">
-                {formatCurrency(room.pricePerMonth)}
-                <span className="text-ink-soft"> / mo</span>
-              </p>
-            </div>
+              </Link>
+            </h3>
+            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-ink-muted">
+              {room.tagline}
+            </p>
           </div>
-        </article>
-      </Link>
+
+          <div className="mt-auto border-t border-olive/8 pt-4">
+            <p className="font-mono text-xs uppercase tracking-wide text-ink-soft">
+              From
+            </p>
+            <p className="mt-0.5 font-mono text-lg font-medium text-olive">
+              {formatCurrency(room.priceFrom, room.currency)}
+              <span className="text-sm font-normal text-ink-soft"> / month</span>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/rooms/${room.slug}`}
+              className="inline-flex h-10 flex-1 items-center justify-center rounded-soft bg-olive px-4 text-sm font-medium text-cream-50 transition-colors hover:bg-olive-700"
+            >
+              View Details
+            </Link>
+            <Link
+              href={`/contact?room=${room.slug}`}
+              className="inline-flex h-10 flex-1 items-center justify-center rounded-soft border border-olive/20 px-4 text-sm font-medium text-olive transition-colors hover:bg-white/60"
+            >
+              Enquire
+            </Link>
+          </div>
+        </div>
+      </article>
     </motion.div>
   );
 }

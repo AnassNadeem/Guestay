@@ -17,7 +17,7 @@ export function RoomGallery({
       <div className="relative aspect-[16/10] overflow-hidden rounded-card bg-cream-200 shadow-soft">
         <Image
           src={images[active] ?? images[0]}
-          alt={`${name} — photo ${active + 1}`}
+          alt={`${name}, photo ${active + 1}`}
           fill
           priority
           sizes="(max-width: 1024px) 100vw, 60vw"

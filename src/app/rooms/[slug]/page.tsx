@@ -1,7 +1,12 @@
-import { BookingCard } from "@/components/rooms/BookingCard";
+import { EnquireCard } from "@/components/rooms/EnquireCard";
 import { RoomGallery } from "@/components/rooms/RoomGallery";
 import { Badge } from "@/components/ui/Badge";
-import { getAmenitiesByIds, getRoomBySlug, getRooms } from "@/lib/mock";
+import {
+  getAmenitiesByIds,
+  getRoomBySlug,
+  getRooms,
+  getSiteContact,
+} from "@/lib/mock";
 import { formatCurrency } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -23,21 +28,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-const availabilityTone = {
-  available: "available" as const,
-  limited: "limited" as const,
-  waitlist: "waitlist" as const,
-  booked: "booked" as const,
-};
+const typeLabel = {
+  shared: "Shared",
+  personal: "Personal",
+  flat: "2-Bedroom Flat",
+} as const;
 
 export default async function RoomDetailPage({ params }: Props) {
-  const room = await getRoomBySlug(params.slug);
+  const [room, contact] = await Promise.all([
+    getRoomBySlug(params.slug),
+    getSiteContact(),
+  ]);
   if (!room) notFound();
 
   const amenities = await getAmenitiesByIds(room.amenities);
 
   return (
-    <div className="bg-white pt-24 md:pt-28">
+    <div className="bg-paper pt-24 md:pt-28">
       <div className="container-page pb-16 md:pb-24">
         <nav className="mb-6 text-sm text-ink-soft">
           <Link href="/rooms" className="hover:text-olive">
@@ -52,14 +59,7 @@ export default async function RoomDetailPage({ params }: Props) {
             <RoomGallery images={room.images} name={room.name} />
 
             <div className="mt-8">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone="cream" className="capitalize">
-                  {room.type}
-                </Badge>
-                <Badge tone={availabilityTone[room.availability]}>
-                  {room.availability}
-                </Badge>
-              </div>
+              <Badge tone="cream">{typeLabel[room.type]}</Badge>
               <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-olive md:text-4xl">
                 {room.name}
               </h1>
@@ -67,7 +67,7 @@ export default async function RoomDetailPage({ params }: Props) {
                 {room.tagline}
               </p>
 
-              <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3 border-y border-olive/8 py-5 text-sm">
+              <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-3 border-y border-olive/10 py-5 text-sm">
                 <div>
                   <dt className="text-ink-soft">Size</dt>
                   <dd className="mt-0.5 font-medium text-ink">
@@ -85,13 +85,15 @@ export default async function RoomDetailPage({ params }: Props) {
                   <dd className="mt-0.5 font-medium text-ink">{room.beds}</dd>
                 </div>
                 <div>
-                  <dt className="text-ink-soft">Floor</dt>
-                  <dd className="mt-0.5 font-medium text-ink">{room.floor}</dd>
+                  <dt className="text-ink-soft">Bedrooms</dt>
+                  <dd className="mt-0.5 font-medium text-ink">
+                    {room.bedrooms}
+                  </dd>
                 </div>
                 <div>
-                  <dt className="text-ink-soft">Deposit</dt>
+                  <dt className="text-ink-soft">From</dt>
                   <dd className="mt-0.5 font-mono font-medium text-ink">
-                    {formatCurrency(room.securityDeposit)}
+                    {formatCurrency(room.priceFrom, room.currency)}/mo
                   </dd>
                 </div>
               </dl>
@@ -103,6 +105,10 @@ export default async function RoomDetailPage({ params }: Props) {
                 <p className="mt-3 leading-relaxed text-ink-muted">
                   {room.longDescription}
                 </p>
+                <p className="mt-4 text-sm text-ink-soft">
+                  Indicative pricing only. Contact us for current availability
+                  and exact pricing.
+                </p>
               </div>
 
               <div className="mt-10">
@@ -113,9 +119,25 @@ export default async function RoomDetailPage({ params }: Props) {
                   {amenities.map((a) => (
                     <li
                       key={a.id}
-                      className="rounded-soft bg-cream-50 px-3.5 py-2.5 text-sm text-ink"
+                      className="rounded-soft bg-white/60 px-3.5 py-2.5 text-sm text-ink"
                     >
                       {a.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="mt-10">
+                <h2 className="font-display text-xl font-semibold text-ink">
+                  House rules
+                </h2>
+                <ul className="mt-4 space-y-2">
+                  {room.houseRules.map((rule) => (
+                    <li
+                      key={rule}
+                      className="border-l-2 border-sage pl-3 text-sm leading-relaxed text-ink-muted"
+                    >
+                      {rule}
                     </li>
                   ))}
                 </ul>
@@ -124,7 +146,7 @@ export default async function RoomDetailPage({ params }: Props) {
           </div>
 
           <div>
-            <BookingCard room={room} />
+            <EnquireCard room={room} contact={contact} />
           </div>
         </div>
       </div>
