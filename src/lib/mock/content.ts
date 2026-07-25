@@ -13,19 +13,19 @@ export const promotions: Promotion[] = [
     title: "Direct booking deposit credit",
     headline: "Book with us directly. Keep 10% of your deposit.",
     description:
-      "Skip the marketplace markup. When you reserve through Guestay, we take 10% off your security deposit — returned with the rest at checkout if the room is left as you found it.",
+      "Skip the marketplace markup. When you reserve through Guestay, we take 10% off your security deposit, returned with the rest at checkout if the room is left as you found it.",
     kind: "deposit_discount",
     value: 0.1,
     valueLabel: "10% off security deposit",
     conditions: [
-      "Applies to bookings made on guestay.com only",
-      "Discount is calculated on the room’s listed security deposit",
+      "Applies to bookings made directly with Guestay only",
+      "Discount is calculated on the room's listed security deposit",
       "Cannot be combined with group no-advance stays",
       "Deposit balance is refundable under our standard checkout policy",
     ],
-    exampleBefore: 600,
-    exampleAfter: 540,
-    exampleLabel: "Sage Loft security deposit",
+    exampleBefore: 25000,
+    exampleAfter: 22500,
+    exampleLabel: "Personal room security deposit",
     active: true,
     startsAt: "2026-01-01T00:00:00Z",
     endsAt: null,
@@ -36,7 +36,7 @@ export const promotions: Promotion[] = [
     title: "Groups of 10+",
     headline: "Ten or more? Stay without an advance payment.",
     description:
-      "Planning a retreat, team offsite, or friend reunion? Groups of 10+ guests can confirm rooms without paying in advance — we hold the block on a signed agreement and settle at arrival.",
+      "Planning a retreat, team offsite, or friend reunion? Groups of 10+ guests can confirm rooms without paying in advance. We hold the block on a signed agreement and settle at arrival.",
     kind: "group_no_advance",
     value: 0,
     valueLabel: "No advance payment",
@@ -46,9 +46,9 @@ export const promotions: Promotion[] = [
       "Valid government ID collected at check-in for each guest",
       "Cancellation window follows the group agreement, not individual rates",
     ],
-    exampleBefore: 1200,
+    exampleBefore: 120000,
     exampleAfter: 0,
-    exampleLabel: "Typical advance hold on a 10-guest weekend",
+    exampleLabel: "Typical advance hold on a 10-guest stay",
     active: true,
     startsAt: "2026-01-01T00:00:00Z",
     endsAt: null,
@@ -60,11 +60,11 @@ export const testimonials: Testimonial[] = [
     id: "t_maya",
     name: "Maya Chen",
     role: "Product designer",
-    location: "Portland → 3-month stay",
+    location: "3-month stay",
     quote:
-      "I came for a cheap private room and stayed because the kitchen actually felt like a kitchen — not a hotel afterthought. People cooked together without making it weird.",
+      "I came for a private room and stayed because the kitchen actually felt like a kitchen, not a hotel afterthought. People cooked together without making it weird.",
     stayDuration: "3 months",
-    roomSlug: "olive-nook",
+    roomSlug: "full-personal-room",
     avatar:
       "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
     rating: 5,
@@ -73,11 +73,11 @@ export const testimonials: Testimonial[] = [
     id: "t_jordan",
     name: "Jordan Hale",
     role: "Remote engineer",
-    location: "Austin → recurring monthly",
+    location: "Recurring monthly",
     quote:
-      "Sage Loft gave me a door I could close and a balcony for calls. The house rules are short. That matters more than any amenity list.",
+      "The personal room gave me a door I could close and a desk for calls. The house rules are short. That matters more than any amenity list.",
     stayDuration: "Monthly",
-    roomSlug: "sage-loft",
+    roomSlug: "full-personal-room",
     avatar:
       "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
     rating: 5,
@@ -86,14 +86,40 @@ export const testimonials: Testimonial[] = [
     id: "t_priya",
     name: "Priya Nair",
     role: "Grad student",
-    location: "Local semester stay",
+    location: "Semester stay",
     quote:
-      "Courtyard Twin with a friend beat finding a short-term lease. We knew the price on day one, and laundry was never a scavenger hunt.",
+      "Sharing a room with a friend beat finding a short-term lease. We knew the price on day one, and laundry was never a scavenger hunt.",
     stayDuration: "4 months",
-    roomSlug: "courtyard-twin",
+    roomSlug: "shared-rooms",
     avatar:
       "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80",
     rating: 5,
+  },
+  {
+    id: "t_alex",
+    name: "Alex Rivera",
+    role: "Freelance writer",
+    location: "6-week stay",
+    quote:
+      "Felt like borrowing a friend's house, not renting a bed. The lounge was lively without being loud, and checkout was painless.",
+    stayDuration: "6 weeks",
+    roomSlug: "full-personal-room",
+    avatar:
+      "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
+    rating: 5,
+  },
+  {
+    id: "t_sofia",
+    name: "Sofia Mendes",
+    role: "Nurse",
+    location: "Night-shift month",
+    quote:
+      "Blackout curtains in the shared room saved my sleep schedule. The house was respectful of quiet hours. That alone was worth it.",
+    stayDuration: "1 month",
+    roomSlug: "shared-rooms",
+    avatar:
+      "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80",
+    rating: 4,
   },
 ];
 
@@ -102,7 +128,7 @@ export const team: TeamMember[] = [
     id: "tm_lena",
     name: "Lena Ortiz",
     role: "House lead",
-    bio: "Runs day-to-day life in the house — check-ins, roommate matching, and making sure the coffee never runs out on a Monday.",
+    bio: "Runs day-to-day life in the house: check-ins, roommate matching, and making sure the coffee never runs out on a Monday.",
     image:
       "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80",
   },
@@ -126,24 +152,31 @@ export const team: TeamMember[] = [
 
 export const faqs: FaqItem[] = [
   {
-    id: "faq_min_stay",
-    question: "Is there a minimum stay?",
+    id: "faq_whats_included",
+    question: "What is included in the rate?",
     answer:
-      "Most rooms book by the night with a 2-night minimum. Monthly rates unlock at 28 nights and include a lower effective nightly price.",
+      "Indicative monthly rates include utilities, Wi-Fi, and access to shared kitchen and lounge. Linen and towels are provided. Exact inclusions vary by room type and are confirmed when you call.",
+    category: "stay",
+  },
+  {
+    id: "faq_how_to_book",
+    question: "How do I book a room?",
+    answer:
+      "Call us, message on WhatsApp, or send the contact form. A human confirms availability and pricing with you. There is no self-serve checkout in this phase.",
     category: "booking",
   },
   {
     id: "faq_deposit",
     question: "How does the security deposit work?",
     answer:
-      "We hold a deposit based on the room type. Book directly on this site and you receive 10% off that deposit. It is returned after checkout once the room passes a standard inspection.",
+      "We hold a deposit based on the room type. Book directly with Guestay and you receive 10% off that deposit. It is returned after checkout once the room passes a standard inspection.",
     category: "payments",
   },
   {
     id: "faq_groups",
     question: "Can we book for a group without paying upfront?",
     answer:
-      "Yes — groups of 10+ guests can confirm a block with no advance payment under a signed agreement. We collect payment at arrival. Contact us at least two weeks before your dates.",
+      "Yes. Groups of 10+ guests can confirm a block with no advance payment under a signed agreement. We collect payment at arrival. Contact us at least two weeks before your dates.",
     category: "payments",
   },
   {
@@ -157,29 +190,24 @@ export const faqs: FaqItem[] = [
     id: "faq_work",
     question: "Can I work from the house?",
     answer:
-      "Yes. Wi‑Fi is built for video calls, and every private room has a desk. The lounge is for conversation; private rooms and the quiet corner upstairs are for focus.",
+      "Yes. Wi-Fi is built for video calls, and every personal room has a desk. The lounge is for conversation; private rooms and quiet corners are for focus.",
     category: "stay",
-  },
-  {
-    id: "faq_cancel",
-    question: "What is the cancellation policy?",
-    answer:
-      "Free cancellation up to 7 days before check-in for standard stays. Inside 7 days, the first night is charged. Group agreements follow their own cancellation window.",
-    category: "booking",
   },
 ];
 
-/** Factual placeholders — replace with real venue details before launch */
+/** Factual placeholders. Replace with real venue details before launch. */
 export const siteContact: SiteContact = {
   email: "hello@guestay.example",
   phone: "+15550198240",
   phoneDisplay: "+1 (555) 019-8240",
+  whatsapp: "15550198240",
+  whatsappDisplay: "WhatsApp",
   addressLine1: "1847 Willow Avenue",
   addressLine2: "Suite B",
   city: "Oakridge",
   region: "OR",
   postalCode: "97463",
   country: "United States",
-  mapEmbedNote: "Map placeholder — replace with Google Maps embed for the final address",
+  mapEmbedNote: "Map placeholder. Replace with a Google Maps embed for the final address.",
   hours: "Front desk · Daily 9am–7pm",
 };
