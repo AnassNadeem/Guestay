@@ -4,6 +4,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Image from "next/image";
+import Link from "next/link";
 import { useRef } from "react";
 import type { TeamMember } from "@/types";
 
@@ -12,11 +13,11 @@ gsap.registerPlugin(ScrollTrigger, useGSAP);
 const values = [
   {
     title: "Clear rates",
-    body: "Nightly and monthly prices on the page. Deposits listed. No surprise cleaning fees at checkout.",
+    body: "Indicative monthly prices on the page. Deposits listed. Exact pricing confirmed when you call.",
   },
   {
     title: "Private when you need it",
-    body: "A door that closes. Shared spaces for when you want company — not forced social calendars.",
+    body: "A door that closes. Shared spaces for when you want company, not forced social calendars.",
   },
   {
     title: "House, not hostel theater",
@@ -75,24 +76,41 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
           className="pointer-events-none absolute inset-0 opacity-30"
           style={{
             background:
-              "radial-gradient(ellipse 60% 50% at 80% 20%, rgba(161,165,128,0.45), transparent 60%)",
+              "radial-gradient(ellipse 60% 50% at 80% 20%, rgba(166,172,126,0.45), transparent 60%)",
           }}
         />
         <div className="container-page relative pb-16 md:pb-20">
           <p className="font-mono text-xs uppercase tracking-[0.18em] text-sage">
             About
           </p>
-          <h1 className="mt-4 max-w-3xl font-display text-4xl font-semibold tracking-tight md:text-5xl lg:text-6xl">
+          <p className="mt-6 font-mono text-sm uppercase tracking-[0.28em] text-sage sm:text-base sm:tracking-[0.32em]">
+            Shared spaces · Better living
+          </p>
+          <h1 className="mt-8 max-w-3xl font-display text-4xl font-semibold tracking-tight md:text-5xl lg:text-6xl">
             Built for people who stay long enough to unpack.
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-cream-200 md:text-lg">
             Guestay started as one house with too many empty rooms and a hunch
             that coliving could feel quieter, clearer, and more adult.
           </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/rooms"
+              className="inline-flex h-11 items-center rounded-soft bg-cream-50 px-5 text-sm font-medium text-olive transition-colors hover:bg-white"
+            >
+              See our rooms
+            </Link>
+            <Link
+              href="/contact"
+              className="inline-flex h-11 items-center rounded-soft border border-cream-50/30 px-5 text-sm font-medium text-cream-50 transition-colors hover:bg-white/10"
+            >
+              Get in touch
+            </Link>
+          </div>
         </div>
       </section>
 
-      <section className="bg-white py-section-sm md:py-section">
+      <section className="bg-paper py-section-sm md:py-section">
         <div className="container-page">
           <div
             ref={storyRef}
@@ -122,7 +140,7 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
               </h2>
               <p data-reveal className="mt-5 leading-relaxed text-ink-muted">
                 We watched friends bounce between short-term rentals that charged
-                hotel prices for empty apartments — and hostels that treated
+                hotel prices for empty apartments, and hostels that treated
                 adults like backpackers. Guestay is the middle path: private
                 rooms in a shared house, with rates you can plan a month around.
               </p>
@@ -139,7 +157,7 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
       <section
         id="values"
         ref={pinRef}
-        className="bg-paper py-section-sm md:py-section"
+        className="border-y border-olive/10 bg-cream py-section-sm md:py-section"
       >
         <div className="container-page">
           <div className="max-w-xl">
@@ -147,7 +165,7 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
               Values
             </p>
             <h2 className="mt-3 font-display text-3xl font-semibold text-ink md:text-4xl">
-              What we won’t compromise
+              What we will not compromise
             </h2>
           </div>
           <div className="mt-12 grid gap-8 md:grid-cols-3">
@@ -170,7 +188,7 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
         </div>
       </section>
 
-      <section id="location" className="bg-white py-section-sm md:py-section">
+      <section id="location" className="bg-paper py-section-sm md:py-section">
         <div className="container-page grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.18em] text-sage-600">
@@ -180,9 +198,10 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
               A quiet street, a walkable corner of town
             </h2>
             <p className="mt-4 leading-relaxed text-ink-muted">
-              We’re in a residential pocket with grocery stores, a park, and a
+              We are in a residential pocket with grocery stores, a park, and a
               bus line within a few blocks. Exact address and transit notes are
-              confirmed at booking — the map on Contact shows our working pin.
+              confirmed when you enquire. The map on Contact shows our working
+              pin.
             </p>
             <p className="mt-4 text-sm text-ink-soft">
               Placeholder address: 1847 Willow Avenue, Oakridge, OR 97463
@@ -190,7 +209,7 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
           </div>
           <div className="relative aspect-[5/4] overflow-hidden rounded-card bg-cream-200 shadow-soft">
             <Image
-              src="https://images.unsplash.com/photo-1449844908441-88298767acb8?auto=format&fit=crop&w=1400&q=80"
+              src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=80"
               alt="Tree-lined residential street at golden hour"
               fill
               sizes="(max-width: 1024px) 100vw, 50vw"
@@ -200,7 +219,7 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
         </div>
       </section>
 
-      <section className="border-t border-olive/8 bg-paper py-section-sm md:py-section">
+      <section className="border-t border-olive/10 bg-paper py-section-sm md:py-section">
         <div className="container-page">
           <div className="max-w-xl">
             <p className="font-mono text-xs uppercase tracking-[0.18em] text-sage-600">
