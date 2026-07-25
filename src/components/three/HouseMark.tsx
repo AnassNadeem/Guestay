@@ -5,14 +5,12 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Group } from "three";
 
-/** Exact logo samples */
-const OLIVE = "#4D503B";
-const SAGE = "#A1A580";
-const CREAM = "#DDDED0";
+const OLIVE = "#3B4430";
+const SAGE = "#A6AC7E";
+const CREAM = "#E7E7D6";
 
 function houseShape() {
   const s = new THREE.Shape();
-  // Wide base, soft roof — matches logo silhouette
   s.moveTo(-0.95, -1.1);
   s.lineTo(-1.15, -1.05);
   s.quadraticCurveTo(-1.28, -0.98, -1.22, -0.72);
@@ -75,7 +73,6 @@ export function HouseMark() {
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     if (!group.current) return;
-    // Gentle yaw only — Float handles vertical motion
     group.current.rotation.y = Math.sin(t * 0.32) * 0.2;
   });
 
@@ -93,7 +90,6 @@ export function HouseMark() {
         scale={0.94}
         headX={0.08}
       />
-      {/* Negative-space house — cream, slightly forward */}
       <HouseBody
         color={CREAM}
         position={[0, 0.06, 0.28]}

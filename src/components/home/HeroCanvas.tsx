@@ -3,6 +3,11 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
+/**
+ * Hero 3D surface.
+ * Current: R3F HouseMark (logo silhouette).
+ * Later: pass a Spline scene URL into a sibling SplineHero and swap here without redesigning the section.
+ */
 const HeroScene = dynamic(
   () => import("@/components/three/HeroScene").then((m) => m.HeroScene),
   { ssr: false },
@@ -58,19 +63,18 @@ export function HeroCanvas() {
   return (
     <div
       ref={ref}
-      className="relative aspect-square w-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-cream-100 via-cream-200 to-sage-100 shadow-soft"
+      className="relative aspect-square w-full max-h-[560px] overflow-hidden lg:max-h-none"
       aria-hidden
     >
-      <div className="pointer-events-none absolute inset-0 bg-grain opacity-60" />
       {!show3D && (
-        <div className="absolute inset-0 flex items-center justify-center p-12">
+        <div className="absolute inset-0 flex items-center justify-center p-10 sm:p-14">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/mark.svg"
+            src="/brand/icon-light.png"
             alt=""
-            width={280}
-            height={240}
-            className="h-auto w-[68%] object-contain drop-shadow-sm"
+            width={320}
+            height={280}
+            className="h-auto w-[72%] object-contain"
           />
         </div>
       )}

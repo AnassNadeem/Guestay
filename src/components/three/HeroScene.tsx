@@ -15,8 +15,8 @@ function SceneLights() {
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
-      <directionalLight position={[-4, 2, -2]} intensity={0.4} color="#DDDED0" />
-      <pointLight position={[0, 2, 3]} intensity={0.25} color="#A1A580" />
+      <directionalLight position={[-4, 2, -2]} intensity={0.4} color="#E7E7D6" />
+      <pointLight position={[0, 2, 3]} intensity={0.25} color="#A6AC7E" />
     </>
   );
 }
@@ -37,11 +37,11 @@ export function HeroScene() {
         </Float>
         <ContactShadows
           position={[0, -1.4, 0]}
-          opacity={0.3}
+          opacity={0.28}
           scale={9}
           blur={2.6}
           far={4.5}
-          color="#4D503B"
+          color="#3B4430"
         />
       </Suspense>
     </Canvas>
