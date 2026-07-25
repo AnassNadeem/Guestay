@@ -14,7 +14,8 @@ const sizes = {
 };
 
 /**
- * Logo wordmark with the intentional GUE / S / TAY color split.
+ * CSS fallback wordmark with the intentional GUE / S / TAY color split.
+ * Prefer /brand/wordmark.png with mix-blend-multiply on cream surfaces.
  */
 export function BrandWordmark({
   className,

@@ -1,6 +1,5 @@
 "use client";
 
-import { BrandWordmark } from "@/components/brand/BrandWordmark";
 import { cn } from "@/lib/utils";
 import { Menu, X } from "lucide-react";
 import Link from "next/link";
@@ -9,7 +8,6 @@ import { useEffect, useState } from "react";
 
 const links = [
   { href: "/rooms", label: "Rooms" },
-  { href: "/promotions", label: "Promotions" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
 ];
@@ -35,7 +33,7 @@ export function Nav() {
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-all duration-300 ease-brand",
         scrolled || open
-          ? "border-b border-olive/5 bg-white/90 shadow-soft backdrop-blur-md"
+          ? "border-b border-olive/10 bg-cream/90 shadow-soft backdrop-blur-md"
           : "bg-transparent",
       )}
     >
@@ -46,8 +44,21 @@ export function Nav() {
           aria-label="Guestay home"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mark.svg" alt="" width={40} height={34} className="h-8 w-auto" />
-          <BrandWordmark size="sm" className="hidden sm:block" />
+          <img
+            src="/brand/icon-light.png"
+            alt=""
+            width={40}
+            height={34}
+            className="h-8 w-auto"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/wordmark-light.png"
+            alt="Guestay"
+            width={140}
+            height={28}
+            className="hidden h-6 w-auto sm:block"
+          />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex" aria-label="Primary">
@@ -73,12 +84,12 @@ export function Nav() {
         </nav>
 
         <div className="hidden md:block">
-          <Link
-            href="/rooms"
+          <a
+            href="tel:+15550198240"
             className="inline-flex h-9 items-center rounded-soft bg-olive px-4 text-sm font-medium text-cream-50 shadow-soft transition-all duration-300 ease-brand hover:bg-olive-700 hover:shadow-lift"
           >
-            Check availability
-          </Link>
+            Call to Book
+          </a>
         </div>
 
         <button
@@ -93,7 +104,7 @@ export function Nav() {
       </div>
 
       {open && (
-        <div className="border-t border-olive/5 bg-white px-5 py-6 md:hidden">
+        <div className="border-t border-olive/10 bg-cream px-5 py-6 md:hidden">
           <div className="flex flex-col gap-4">
             {links.map((link) => (
               <Link
@@ -104,12 +115,12 @@ export function Nav() {
                 {link.label}
               </Link>
             ))}
-            <Link
-              href="/rooms"
+            <a
+              href="tel:+15550198240"
               className="mt-2 inline-flex h-11 items-center justify-center rounded-soft bg-olive text-sm font-medium text-cream-50"
             >
-              Check availability
-            </Link>
+              Call to Book
+            </a>
           </div>
         </div>
       )}
