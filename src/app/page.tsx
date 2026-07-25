@@ -1,25 +1,25 @@
 import { Amenities } from "@/components/home/Amenities";
-import { FeaturedRooms } from "@/components/home/FeaturedRooms";
+import { GoogleReviews } from "@/components/home/GoogleReviews";
 import { Hero } from "@/components/home/Hero";
-import { LivingBand } from "@/components/home/LivingBand";
+import { LocateUs } from "@/components/home/LocateUs";
 import { PromoStrip } from "@/components/home/PromoStrip";
-import { Testimonials } from "@/components/home/Testimonials";
-import { getFeaturedRooms, getTestimonials } from "@/lib/mock";
+import { RoomsCircularGallery } from "@/components/home/RoomsCircularGallery";
+import { getSiteContact, getTestimonials } from "@/lib/mock";
 
 export default async function HomePage() {
-  const [rooms, testimonials] = await Promise.all([
-    getFeaturedRooms(4),
+  const [testimonials, contact] = await Promise.all([
     getTestimonials(),
+    getSiteContact(),
   ]);
 
   return (
     <>
       <Hero />
       <PromoStrip />
-      <FeaturedRooms rooms={rooms} />
-      <LivingBand />
+      <RoomsCircularGallery />
       <Amenities />
-      <Testimonials items={testimonials} />
+      <GoogleReviews items={testimonials} />
+      <LocateUs contact={contact} />
     </>
   );
 }
