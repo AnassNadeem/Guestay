@@ -3,17 +3,7 @@
  * Swap mock fetchers in lib/mock for real queries without touching UI.
  */
 
-export type RoomType =
-  | "private"
-  | "shared"
-  | "studio"
-  | "suite";
-
-export type AvailabilityStatus =
-  | "available"
-  | "limited"
-  | "waitlist"
-  | "booked";
+export type RoomType = "shared" | "personal" | "flat";
 
 export interface Amenity {
   id: string;
@@ -30,41 +20,22 @@ export interface Room {
   tagline: string;
   description: string;
   longDescription: string;
-  pricePerNight: number;
-  pricePerMonth: number;
-  currency: "USD";
+  /** Indicative monthly starting price in PKR */
+  priceFrom: number;
+  currency: "PKR";
   securityDeposit: number;
   capacity: number;
   beds: number;
   bathrooms: number;
   sizeSqFt: number;
-  floor: number;
-  availability: AvailabilityStatus;
+  bedrooms: number;
   featured: boolean;
   amenities: string[];
+  houseRules: string[];
   images: string[];
   coverImage: string;
   createdAt: string;
   updatedAt: string;
-}
-
-/** Shape only — unused in this frontend phase */
-export interface Booking {
-  id: string;
-  roomId: string;
-  guestName: string;
-  guestEmail: string;
-  checkIn: string;
-  checkOut: string;
-  guests: number;
-  nights: number;
-  subtotal: number;
-  securityDeposit: number;
-  depositDiscount: number;
-  total: number;
-  status: "draft" | "pending" | "confirmed" | "cancelled";
-  promotionCode: string | null;
-  createdAt: string;
 }
 
 export type PromotionKind =
@@ -122,6 +93,8 @@ export interface SiteContact {
   email: string;
   phone: string;
   phoneDisplay: string;
+  whatsapp: string;
+  whatsappDisplay: string;
   addressLine1: string;
   addressLine2: string;
   city: string;

@@ -7,8 +7,14 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCurrency(
   amount: number,
-  currency: string = "USD",
+  currency: string = "PKR",
 ): string {
+  if (currency === "PKR") {
+    return `Rs. ${new Intl.NumberFormat("en-PK", {
+      maximumFractionDigits: 0,
+    }).format(amount)}`;
+  }
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
@@ -24,9 +30,8 @@ export function formatDateLabel(iso: string): string {
   }).format(new Date(iso));
 }
 
-export function nightsBetween(checkIn: string, checkOut: string): number {
-  const start = new Date(checkIn);
-  const end = new Date(checkOut);
-  const ms = end.getTime() - start.getTime();
-  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)));
+export function whatsappHref(phoneDigits: string, message?: string): string {
+  const base = `https://wa.me/${phoneDigits.replace(/\D/g, "")}`;
+  if (!message) return base;
+  return `${base}?text=${encodeURIComponent(message)}`;
 }
