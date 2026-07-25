@@ -2,9 +2,11 @@
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { whatsappHref } from "@/lib/utils";
 import type { FaqItem, SiteContact } from "@/types";
-import { ChevronDown, Mail, MapPin, Phone } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { ChevronDown, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import { FormEvent, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 function FaqAccordion({ items }: { items: FaqItem[] }) {
   const [openId, setOpenId] = useState<string | null>(items[0]?.id ?? null);
@@ -55,11 +57,53 @@ export function ContactContent({
   contact: SiteContact;
   faqs: FaqItem[];
 }) {
+  const searchParams = useSearchParams();
+  const roomPref = searchParams.get("room") ?? "";
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
-  function onSubmit(e: FormEvent) {
+  const defaultRoom = useMemo(() => {
+    if (roomPref === "shared-rooms") return "shared";
+    if (roomPref === "full-personal-room") return "personal";
+    if (roomPref === "full-2-bedroom-flats") return "flat";
+    return "";
+  }, [roomPref]);
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSent(true);
+    setError(null);
+    setPending(true);
+
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const payload = {
+      name: String(data.get("name") ?? ""),
+      email: String(data.get("email") ?? ""),
+      phone: String(data.get("phone") ?? ""),
+      roomType: String(data.get("roomType") ?? ""),
+      message: String(data.get("message") ?? ""),
+    };
+
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error ?? "Something went wrong");
+      }
+      setSent(true);
+      form.reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -70,28 +114,49 @@ export function ContactContent({
             Contact
           </p>
           <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-olive md:text-5xl">
-            Tell us when you’re coming
+            Call, message, or write
           </h1>
           <p className="mt-4 text-base leading-relaxed text-ink-muted md:text-lg">
-            Questions about rooms, group stays, or a longer monthly booking —
-            send a note. We reply within one business day.
+            Every enquiry goes to a person. We reply within one business day.
           </p>
         </div>
 
+        <div className="mt-8 flex flex-wrap gap-3">
+          <a
+            href={`tel:${contact.phone}`}
+            className="inline-flex h-12 items-center gap-2 rounded-soft bg-olive px-5 text-base font-medium text-cream-50 shadow-soft transition-colors hover:bg-olive-700"
+          >
+            <Phone className="h-4 w-4" />
+            {contact.phoneDisplay}
+          </a>
+          <a
+            href={whatsappHref(
+              contact.whatsapp,
+              "Hi Guestay, I'd like to ask about a stay.",
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-12 items-center gap-2 rounded-soft border border-olive/20 bg-white/70 px-5 text-base font-medium text-olive transition-colors hover:bg-white"
+          >
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp
+          </a>
+        </div>
+
         <div className="mt-12 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-          <Card padding="lg">
+          <Card padding="lg" className="bg-white/75">
             {sent ? (
               <div className="flex min-h-[320px] flex-col items-start justify-center">
                 <p className="font-display text-2xl font-semibold text-olive">
-                  Thanks — we have your note
+                  Thanks, we have your note
                 </p>
                 <p className="mt-3 max-w-md text-ink-muted">
-                  Prefer email? Reach the house desk at{" "}
+                  Prefer a call? Reach us at{" "}
                   <a
-                    href={`mailto:${contact.email}`}
+                    href={`tel:${contact.phone}`}
                     className="font-medium text-olive underline-offset-2 hover:underline"
                   >
-                    {contact.email}
+                    {contact.phoneDisplay}
                   </a>
                   .
                 </p>
@@ -133,17 +198,28 @@ export function ContactContent({
                 </div>
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-soft">
-                    Topic
+                    Phone
+                  </span>
+                  <input
+                    name="phone"
+                    type="tel"
+                    className="w-full rounded-soft border border-olive/10 bg-cream-50 px-3 py-2.5 text-sm outline-none focus:border-olive/30"
+                    placeholder="Optional"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-soft">
+                    Which room type
                   </span>
                   <select
-                    name="topic"
+                    name="roomType"
                     className="w-full rounded-soft border border-olive/10 bg-cream-50 px-3 py-2.5 text-sm outline-none focus:border-olive/30"
-                    defaultValue="rooms"
+                    defaultValue={defaultRoom}
                   >
-                    <option value="rooms">Room availability</option>
-                    <option value="group">Group of 10+</option>
-                    <option value="monthly">Monthly stay</option>
-                    <option value="other">Something else</option>
+                    <option value="">Not sure yet</option>
+                    <option value="shared">Shared Rooms</option>
+                    <option value="personal">Full Personal Room</option>
+                    <option value="flat">Full 2-Bedroom Flats</option>
                   </select>
                 </label>
                 <label className="block">
@@ -155,18 +231,23 @@ export function ContactContent({
                     name="message"
                     rows={5}
                     className="w-full resize-y rounded-soft border border-olive/10 bg-cream-50 px-3 py-2.5 text-sm outline-none focus:border-olive/30"
-                    placeholder="Dates, room preference, group size…"
+                    placeholder="Dates, group size, questions…"
                   />
                 </label>
-                <Button type="submit" size="lg">
-                  Send message
+                {error && (
+                  <p className="text-sm text-red-700" role="alert">
+                    {error}
+                  </p>
+                )}
+                <Button type="submit" size="lg" disabled={pending}>
+                  {pending ? "Sending…" : "Send message"}
                 </Button>
               </form>
             )}
           </Card>
 
           <div className="space-y-6">
-            <Card padding="lg" className="space-y-4">
+            <Card padding="lg" className="space-y-4 bg-white/75">
               <div className="flex gap-3">
                 <MapPin className="mt-0.5 h-5 w-5 text-sage-600" />
                 <div>
@@ -209,7 +290,7 @@ export function ContactContent({
 
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-card border border-olive/10 bg-cream-100">
               <div className="absolute inset-0 opacity-40">
-                <div className="h-full w-full bg-[linear-gradient(to_right,#A1A58022_1px,transparent_1px),linear-gradient(to_bottom,#A1A58022_1px,transparent_1px)] bg-[size:28px_28px]" />
+                <div className="h-full w-full bg-[linear-gradient(to_right,#A6AC7E22_1px,transparent_1px),linear-gradient(to_bottom,#A6AC7E22_1px,transparent_1px)] bg-[size:28px_28px]" />
               </div>
               <div className="relative max-w-xs px-6 text-center">
                 <MapPin className="mx-auto h-8 w-8 text-olive" />
@@ -217,7 +298,7 @@ export function ContactContent({
                   {contact.city}, {contact.region}
                 </p>
                 <p className="mt-2 text-sm text-ink-muted">
-                  Interactive map embeds after we lock the final address.
+                  {contact.mapEmbedNote}
                 </p>
               </div>
             </div>
