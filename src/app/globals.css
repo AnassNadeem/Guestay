@@ -3,11 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #2a2c24;
-  --olive: #4d503b;
-  --sage: #a1a580;
-  --cream: #ddded0;
+  --background: #e7e7d6;
+  --foreground: #3b4430;
+  --olive: #3b4430;
+  --sage: #a6ac7e;
+  --cream: #e7e7d6;
+  --warm-grey: #6b6b60;
+  --card: #ffffff;
+  --card-foreground: #3b4430;
+  --muted: #f5f5ee;
+  --muted-foreground: #6b6b60;
+  --border: rgba(59, 68, 48, 0.12);
+  --ring: #a6ac7e;
+  --primary: #3b4430;
+  --primary-foreground: #fbfbf7;
+  --secondary: #e7e7d6;
+  --secondary-foreground: #3b4430;
+  --accent: #a6ac7e;
+  --accent-foreground: #3b4430;
+  --destructive: #b42318;
+  --input: rgba(59, 68, 48, 0.12);
+  --radius: 0.75rem;
 }
 
 html {
@@ -38,7 +54,7 @@ body {
 
 ::selection {
   background: #d9dcc9;
-  color: #2a2c24;
+  color: #3b4430;
 }
 
 @layer base {
@@ -48,7 +64,7 @@ body {
   h4 {
     font-family: var(--font-display), system-ui, sans-serif;
     letter-spacing: -0.02em;
-    color: #2a2c24;
+    color: #3b4430;
   }
 }
 
@@ -62,7 +78,12 @@ body {
   }
 
   .bg-paper {
-    background-color: #f7f7f3;
+    background-color: #e7e7d6;
     background-image: theme("backgroundImage.grain");
   }
+
+  .text-foreground {
+    color: var(--foreground);
+  }
 }
+
