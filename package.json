@@ -4,21 +4,30 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:admin": "npm --prefix admin run dev",
     "build": "next build",
+    "build:admin": "npm --prefix admin run build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "expire-holds": "curl -X POST http://localhost:3000/api/cron/expire-holds",
+    "seed:dev-users": "SEED_DEV_USERS=1 npx tsx scripts/seed-dev-users.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
     "@gsap/react": "^2.1.2",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@supabase/ssr": "^0.12.3",
+    "@supabase/supabase-js": "^2.110.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "framer-motion": "^12.42.2",
     "gsap": "^3.15.0",
+    "ical.js": "^2.2.1",
     "lucide-react": "^1.26.0",
     "next": "14.2.35",
+    "nodemailer": "^9.0.3",
     "react": "^18",
     "react-dom": "^18",
     "shadcn": "^4.14.1",
@@ -28,6 +37,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/three": "^0.185.1",
@@ -35,6 +45,7 @@
     "eslint-config-next": "14.2.35",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.114.0"
   }
 }
