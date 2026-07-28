@@ -1,43 +1,45 @@
 # Guestay
 
-Marketing + booking-flow frontend for **Guestay** — *Shared Spaces, Better Living.*
+Coliving booking product — *Shared Spaces, Better Living.*
 
 ## Stack
 
 - Next.js 14 (App Router) + TypeScript + Tailwind CSS
-- Framer Motion, GSAP ScrollTrigger
-- react-three-fiber / drei (homepage 3D mark)
-- Typed mock data shaped for a future Supabase swap
+- Framer Motion / GSAP
+- Supabase (schema in `supabase/`) — optional until credentials are set
+- Safepay payment gateway adapter (`src/lib/payments`)
+- Cloudflare Workers (`workers/`) for email, hold expiry, OTA/iCal
 
 ## Develop
 
 ```bash
+Copy-Item .env.example .env.local
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000). Admin: [http://localhost:3000/admin](http://localhost:3000/admin).
 
-## Pages
+Without Supabase/Safepay keys, bookings use an in-memory store and a mock payment redirect so you can test the full checkout flow locally.
+
+## Apply database
+
+1. Create a Supabase project.
+2. Run `supabase/migrations/20260728000000_init.sql` then `supabase/seed.sql` in the SQL editor.
+3. Fill `.env.local` Supabase keys and set `OWNER_BOOTSTRAP_EMAIL`.
+
+## Key routes
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Hero + 3D mark, search UI, featured rooms, amenities, testimonials |
-| `/rooms` | Client-side filters + room grid |
-| `/rooms/[slug]` | Gallery, details, sticky quote card |
-| `/promotions` | Direct-booking deposit credit + group offer |
-| `/about` | Story, values, location, team |
-| `/contact` | Form (local), map placeholder, FAQ |
-| `404` | On-brand not found |
+| `/` | Marketing home |
+| `/rooms`, `/rooms/[slug]` | Unit inventory + live quote |
+| `/checkout` | Single-page checkout + 2h hold |
+| `/booking/[reference]` | Confirmation |
+| `/account`, `/login` | Guest magic-link account |
+| `/promotions`, `/terms`, `/privacy`, `/cancellation` | Offers + legal |
+| `/admin` | Staff CRM, calendar, walk-in, OTA, analytics |
 
-## Brand tokens
+## Brand
 
-Sampled from `public/logo.png`:
-
-- Olive `#4D503B`
-- Sage `#A1A580`
-- Cream `#DDDED0`
-
-## Mock data
-
-`src/types` + `src/lib/mock` — replace fetchers with Supabase without rewriting UI.
+Ink `#3B4430` · Sage `#A6AC7E` · Cream `#E7E7D6` · Space Grotesk + Inter + JetBrains Mono
