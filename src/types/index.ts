@@ -1,9 +1,14 @@
 /**
- * Domain types shaped for a future Supabase schema.
+ * Domain types shaped for Supabase schema.
  * Swap mock fetchers in lib/mock for real queries without touching UI.
  */
 
+export type RoomCategory = "shared_bedroom" | "private_room" | "flat";
+/** @deprecated use RoomCategory */
 export type RoomType = "shared" | "personal" | "flat";
+
+export type RoomStatus = "active" | "under_development" | "archived";
+export type BookingMode = "shared" | "exclusive";
 
 export interface Amenity {
   id: string;
@@ -12,15 +17,32 @@ export interface Amenity {
   category: "room" | "shared" | "building";
 }
 
+export interface RoomPricingTier {
+  bookingMode: BookingMode;
+  /** Nightly rates PKR for tiers 1–4 */
+  tier1RatePkr: number;
+  tier2RatePkr: number;
+  tier3RatePkr: number;
+  tier4RatePkr: number;
+  /** Night-count breakpoints (defaults 7 / 15 / 30) */
+  breakpointT2: number;
+  breakpointT3: number;
+  breakpointT4: number;
+  securityDepositPkr: number;
+}
+
 export interface Room {
   id: string;
   slug: string;
   name: string;
+  /** Marketing category */
+  category: RoomCategory;
+  /** Legacy alias for category mapping */
   type: RoomType;
   tagline: string;
   description: string;
   longDescription: string;
-  /** Indicative monthly starting price in PKR */
+  /** Lowest indicative nightly (or monthly for flats) shown on cards */
   priceFrom: number;
   currency: "PKR";
   securityDeposit: number;
@@ -29,11 +51,15 @@ export interface Room {
   bathrooms: number;
   sizeSqFt: number;
   bedrooms: number;
+  allowsSharedBooking: boolean;
+  allowsExclusiveBooking: boolean;
+  status: RoomStatus;
   featured: boolean;
   amenities: string[];
   houseRules: string[];
   images: string[];
   coverImage: string;
+  pricing: RoomPricingTier[];
   createdAt: string;
   updatedAt: string;
 }
@@ -89,10 +115,28 @@ export interface FaqItem {
   category: "booking" | "stay" | "payments" | "general";
 }
 
+export type NearbyPlaceKind =
+  | "shopping"
+  | "healthcare"
+  | "transport"
+  | "education"
+  | "food";
+
+export interface NearbyPlace {
+  id: string;
+  name: string;
+  kind: NearbyPlaceKind;
+  /** Minutes by car in typical traffic. */
+  minutes: number;
+  note: string;
+}
+
 export interface SiteContact {
   email: string;
   phone: string;
   phoneDisplay: string;
+  phoneSecondary?: string;
+  phoneSecondaryDisplay?: string;
   whatsapp: string;
   whatsappDisplay: string;
   addressLine1: string;
@@ -101,6 +145,25 @@ export interface SiteContact {
   region: string;
   postalCode: string;
   country: string;
+  mapUrl: string;
+  mapEmbedUrl: string;
   mapEmbedNote: string;
   hours: string;
+  socialInstagram?: string;
+  socialFacebook?: string;
+  socialTiktok?: string;
+  socialYoutube?: string;
 }
+
+export type BookingSource = "direct" | "airbnb" | "booking_com" | "walk_in";
+
+export type BookingStatus =
+  | "pending_hold"
+  | "partially_paid"
+  | "paid"
+  | "confirmed_no_advance"
+  | "cancelled"
+  | "completed"
+  | "expired_hold";
+
+export type UserRole = "owner" | "manager" | "guest";
