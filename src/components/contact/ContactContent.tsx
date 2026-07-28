@@ -64,10 +64,11 @@ export function ContactContent({
   const [pending, setPending] = useState(false);
 
   const defaultRoom = useMemo(() => {
-    if (roomPref === "shared-rooms") return "shared";
-    if (roomPref === "full-personal-room") return "personal";
-    if (roomPref === "full-2-bedroom-flats") return "flat";
-    return "";
+    if (roomPref.includes("shared")) return "shared";
+    if (roomPref.includes("personal") || roomPref.includes("bedroom"))
+      return "personal";
+    if (roomPref.includes("flat")) return "flat";
+    return roomPref || "";
   }, [roomPref]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -254,12 +255,28 @@ export function ContactContent({
                   <p className="font-medium text-ink">Visit</p>
                   <p className="mt-1 text-sm leading-relaxed text-ink-muted">
                     {contact.addressLine1}
+                    {contact.addressLine2 ? (
+                      <>
+                        <br />
+                        {contact.addressLine2}
+                      </>
+                    ) : null}
                     <br />
-                    {contact.addressLine2}
-                    <br />
-                    {contact.city}, {contact.region} {contact.postalCode}
+                    {[contact.city, contact.region, contact.postalCode]
+                      .filter(Boolean)
+                      .join(", ")}
                   </p>
                   <p className="mt-2 text-xs text-ink-soft">{contact.hours}</p>
+                  {contact.mapUrl ? (
+                    <a
+                      href={contact.mapUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-block text-sm font-medium text-olive underline-offset-2 hover:underline"
+                    >
+                      Open in Google Maps
+                    </a>
+                  ) : null}
                 </div>
               </div>
               <div className="flex gap-3">
@@ -272,6 +289,14 @@ export function ContactContent({
                   >
                     {contact.phoneDisplay}
                   </a>
+                  {contact.phoneSecondary && contact.phoneSecondaryDisplay ? (
+                    <a
+                      href={`tel:${contact.phoneSecondary}`}
+                      className="mt-1 block text-sm text-ink-muted hover:text-olive"
+                    >
+                      {contact.phoneSecondaryDisplay}
+                    </a>
+                  ) : null}
                 </div>
               </div>
               <div className="flex gap-3">
@@ -288,19 +313,34 @@ export function ContactContent({
               </div>
             </Card>
 
-            <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-card border border-olive/10 bg-cream-100">
-              <div className="absolute inset-0 opacity-40">
-                <div className="h-full w-full bg-[linear-gradient(to_right,#A6AC7E22_1px,transparent_1px),linear-gradient(to_bottom,#A6AC7E22_1px,transparent_1px)] bg-[size:28px_28px]" />
-              </div>
-              <div className="relative max-w-xs px-6 text-center">
-                <MapPin className="mx-auto h-8 w-8 text-olive" />
-                <p className="mt-3 font-display text-lg font-medium text-olive">
-                  {contact.city}, {contact.region}
-                </p>
-                <p className="mt-2 text-sm text-ink-muted">
-                  {contact.mapEmbedNote}
-                </p>
-              </div>
+            <div className="relative aspect-[4/3] overflow-hidden rounded-card border border-olive/10 bg-cream-100">
+              {contact.mapEmbedUrl ? (
+                <iframe
+                  title="Guestay location map"
+                  src={contact.mapEmbedUrl}
+                  className="absolute inset-0 h-full w-full border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  allowFullScreen
+                />
+              ) : (
+                <>
+                  <div className="absolute inset-0 opacity-40">
+                    <div className="h-full w-full bg-[linear-gradient(to_right,#A6AC7E22_1px,transparent_1px),linear-gradient(to_bottom,#A6AC7E22_1px,transparent_1px)] bg-[size:28px_28px]" />
+                  </div>
+                  <div className="relative flex h-full items-center justify-center px-6 text-center">
+                    <div>
+                      <MapPin className="mx-auto h-8 w-8 text-olive" />
+                      <p className="mt-3 font-display text-lg font-medium text-olive">
+                        {contact.city}, {contact.region}
+                      </p>
+                      <p className="mt-2 text-sm text-ink-muted">
+                        {contact.mapEmbedNote}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

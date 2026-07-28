@@ -195,16 +195,15 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
               Location
             </p>
             <h2 className="mt-3 font-display text-3xl font-semibold text-ink md:text-4xl">
-              A quiet street, a walkable corner of town
+              On Bedian Road, Lahore Cantt
             </h2>
             <p className="mt-4 leading-relaxed text-ink-muted">
-              We are in a residential pocket with grocery stores, a park, and a
-              bus line within a few blocks. Exact address and transit notes are
-              confirmed when you enquire. The map on Contact shows our working
-              pin.
+              We are in Sadaat Town off Bedian Road — a residential pocket of
+              Lahore Cantt with everyday amenities nearby. Drop by during front
+              desk hours, or open the map on Contact for directions.
             </p>
             <p className="mt-4 text-sm text-ink-soft">
-              Placeholder address: 1847 Willow Avenue, Oakridge, OR 97463
+              18-B, Street -1, Sadaat Town, Bedian Road, Lahore Cantt
             </p>
           </div>
           <div className="relative aspect-[5/4] overflow-hidden rounded-card bg-cream-200 shadow-soft">
