@@ -1,0 +1,10 @@
+# Cloudflare Pages — Next.js (public site)
+# Build command: npm run build
+# Output: use @cloudflare/next-on-pages or OpenNext adapter at deploy time.
+# For now this documents the intended Pages project.
+
+name = "guestay-web"
+compatibility_date = "2026-07-01"
+compatibility_flags = ["nodejs_compat"]
+
+pages_build_output_dir = ".vercel/output/static"
