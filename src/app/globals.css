@@ -4,7 +4,7 @@
 
 :root {
   --background: #e7e7d6;
-  --foreground: #3b4430;
+  --foreground: #231f1a;
   --olive: #3b4430;
   --sage: #a6ac7e;
   --cream: #e7e7d6;
@@ -12,7 +12,7 @@
   --card: #ffffff;
   --card-foreground: #3b4430;
   --muted: #f5f5ee;
-  --muted-foreground: #6b6b60;
+  --muted-foreground: #4a4742;
   --border: rgba(59, 68, 48, 0.12);
   --ring: #a6ac7e;
   --primary: #3b4430;
@@ -24,6 +24,9 @@
   --destructive: #b42318;
   --input: rgba(59, 68, 48, 0.12);
   --radius: 0.75rem;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: Inter, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
 html {
@@ -63,8 +66,9 @@ body {
   h3,
   h4 {
     font-family: var(--font-display), system-ui, sans-serif;
+    font-weight: 600;
     letter-spacing: -0.02em;
-    color: #3b4430;
+    color: #231f1a;
   }
 }
 
@@ -82,8 +86,70 @@ body {
     background-image: theme("backgroundImage.grain");
   }
 
+  /* Shared eyebrow treatment for section labels. */
+  .text-eyebrow {
+    @apply text-[0.7rem] font-medium uppercase tracking-[0.2em] text-ink-soft;
+  }
+
+  /* Reeded / fluted panelling used behind hero and quiet surfaces. */
+  .bg-fluted {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgba(35, 31, 26, 0.045) 0px,
+      rgba(35, 31, 26, 0.045) 1px,
+      transparent 1px,
+      transparent 4px,
+      rgba(255, 255, 255, 0.55) 4px,
+      rgba(255, 255, 255, 0.55) 5px,
+      transparent 5px,
+      transparent 9px
+    );
+  }
+
   .text-foreground {
     color: var(--foreground);
   }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  75% {
+    transform: translateX(6px);
+  }
+}
+.price-range-thumb {
+  pointer-events: none;
+}
+.price-range-thumb::-webkit-slider-thumb {
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: #a6ac7e;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(59, 68, 48, 0.25);
+  cursor: grab;
+  transition: transform 0.15s ease;
+}
+.price-range-thumb::-webkit-slider-thumb:hover,
+.price-range-thumb::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+}
+.price-range-thumb::-moz-range-thumb {
+  pointer-events: auto;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: #a6ac7e;
+  border: 2px solid #fff;
+  cursor: grab;
 }
 

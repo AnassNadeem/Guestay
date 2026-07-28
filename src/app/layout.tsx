@@ -1,27 +1,11 @@
 import type { Metadata } from "next";
-import { DM_Sans, JetBrains_Mono, Space_Grotesk } from "next/font/google";
-import { PromoPopout } from "@/components/home/PromoPopout";
-import { Footer } from "@/components/layout/Footer";
-import { Nav } from "@/components/layout/Nav";
+import { AppChrome } from "@/components/layout/AppChrome";
 import "./globals.css";
 
-const display = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const body = DM_Sans({
-  subsets: ["latin"],
-  variable: "--font-body",
-  display: "swap",
-});
-
-const mono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
+/**
+ * Fonts: Space Grotesk / Inter / JetBrains Mono via CSS (see globals.css).
+ * Avoids next/font Google fetch failures in offline / restricted CI.
+ */
 
 export const metadata: Metadata = {
   title: {
@@ -29,12 +13,12 @@ export const metadata: Metadata = {
     template: "%s · Guestay",
   },
   description:
-    "Coliving rooms with real kitchens, clear rates, and neighbors who know when to say hello. Call us to book.",
-  metadataBase: new URL("https://guestay.example"),
+    "Book shared bedrooms and flats in Lahore Cantt. Clear duration-based rates, direct-booking deposit credit, and real people when you need them.",
+  metadataBase: new URL("https://guestay.pk"),
   openGraph: {
     title: "Guestay | Shared Spaces, Better Living",
     description:
-      "A small coliving house for private rooms, shared living, and stays that feel like home.",
+      "Coliving rooms and flats on Bedian Road — book online with clear pricing.",
     type: "website",
     images: ["/brand/lockup-light.png"],
   },
@@ -54,13 +38,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${display.variable} ${body.variable} ${mono.variable} min-h-screen bg-cream font-sans text-ink antialiased`}
-      >
-        <Nav />
-        <main className="min-h-screen">{children}</main>
-        <Footer />
-        <PromoPopout />
+      <head>
+        {/* eslint-disable-next-line @next/next/no-page-custom-font -- App Router root layout; next/font blocked offline */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="min-h-screen bg-cream font-sans text-ink antialiased">
+        <AppChrome>{children}</AppChrome>
       </body>
     </html>
   );

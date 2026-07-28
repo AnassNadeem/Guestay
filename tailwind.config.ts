@@ -49,9 +49,19 @@ const config: Config = {
           500: "#B8B8A3",
         },
         ink: {
-          DEFAULT: "#3B4430",
-          muted: "#6B6B60",
-          soft: "#8A8A7E",
+          DEFAULT: "#231F1A",
+          heading: "#231F1A",
+          /** WCAG-safe muted on cream — avoid light grey on white */
+          muted: "#4A4742",
+          soft: "#5C5C52",
+        },
+        /** Warm stone / travertine tones used by the hero showroom. */
+        sand: {
+          50: "#F7F3EA",
+          100: "#EFE9DC",
+          200: "#E3D9C6",
+          300: "#D4C7AC",
+          400: "#C9BBA0",
         },
         surface: {
           DEFAULT: "#FFFFFF",
@@ -61,6 +71,7 @@ const config: Config = {
       },
       fontFamily: {
         display: ["var(--font-display)", "system-ui", "sans-serif"],
+        serif: ["var(--font-display)", "system-ui", "sans-serif"],
         sans: ["var(--font-body)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
@@ -102,6 +113,7 @@ const config: Config = {
       animation: {
         marquee: "marquee 42s linear infinite",
         "marquee-reverse": "marquee-reverse 48s linear infinite",
+        ticker: "marquee 38s linear infinite",
       },
     },
   },
