@@ -1,5 +1,6 @@
 "use client";
 
+import { siteContact } from "@/lib/mock/content";
 import { Percent, Users, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -20,13 +21,15 @@ export function PromoPopout() {
     }
     setDismissed(false);
 
+    // Hold off until the guest is well past the hero; the promo ticker
+    // already carries these offers higher up the page.
     const onScroll = () => {
-      if (window.scrollY > window.innerHeight * 0.4) {
+      if (window.scrollY > window.innerHeight * 1.6) {
         setVisible(true);
       }
     };
 
-    const timer = window.setTimeout(() => setVisible(true), 8000);
+    const timer = window.setTimeout(() => setVisible(true), 20000);
 
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -63,7 +66,7 @@ export function PromoPopout() {
             className="fixed bottom-5 right-5 z-40 w-[min(100%-2.5rem,22rem)] overflow-hidden rounded-card border border-olive/10 bg-cream shadow-lift"
           >
             <div className="flex items-start justify-between gap-3 border-b border-olive/10 bg-olive px-4 py-3 text-cream-50">
-              <p className="font-mono text-[0.7rem] uppercase tracking-[0.16em] text-sage">
+              <p className="text-[0.7rem] font-medium uppercase tracking-[0.2em] text-sage">
                 Book direct
               </p>
               <button
@@ -156,20 +159,20 @@ export function PromoPopout() {
               </ul>
 
               <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-                <a
-                  href="tel:+15550198240"
+                <Link
+                  href="/rooms"
                   onClick={dismiss}
                   className="inline-flex h-11 flex-1 items-center justify-center rounded-soft bg-olive text-sm font-medium text-cream-50 transition-colors hover:bg-olive-700"
                 >
-                  Call us to book
-                </a>
-                <Link
-                  href="/contact"
+                  Browse rooms
+                </Link>
+                <a
+                  href={`tel:${siteContact.phone}`}
                   onClick={dismiss}
                   className="inline-flex h-11 flex-1 items-center justify-center rounded-soft border border-olive/20 text-sm font-medium text-olive transition-colors hover:bg-white/60"
                 >
-                  Contact form
-                </Link>
+                  Call us
+                </a>
               </div>
             </motion.div>
           </motion.div>

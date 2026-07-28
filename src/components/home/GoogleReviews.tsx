@@ -5,8 +5,8 @@ import type { Testimonial } from "@/types";
 import { Star } from "lucide-react";
 import Image from "next/image";
 
-/** Placeholder Google Maps place URL. Swap when the real link is ready. */
-const GOOGLE_MAPS_REVIEWS_URL = "#locate";
+/** Google Maps place URL for Guestay Apartments. */
+const GOOGLE_MAPS_REVIEWS_URL = "https://maps.app.goo.gl/WeV5BdTF3UPjTi8H8";
 
 function GoogleMark({ className }: { className?: string }) {
   return (
@@ -112,9 +112,9 @@ export function GoogleReviews({ items }: { items: Testimonial[] }) {
   return (
     <Section
       className="overflow-hidden bg-paper"
-      eyebrow="Google reviews"
-      title="What guests say about the house"
-      description="Real stays, real notes. Connected to Google Reviews once the place link is ready."
+      eyebrow="Guest reviews"
+      title="Trusted by the people who lived here"
+      description="Notes from guests who stayed a month or a season. Every review is tied to a real stay."
       actions={
         <a
           href={GOOGLE_MAPS_REVIEWS_URL}
@@ -128,9 +128,7 @@ export function GoogleReviews({ items }: { items: Testimonial[] }) {
       <div className="mb-8 flex flex-wrap items-center gap-4 rounded-card border border-olive/8 bg-white/70 px-5 py-4 shadow-soft">
         <GoogleMark className="h-8 w-8" />
         <div>
-          <p className="font-display text-lg font-semibold text-ink">
-            Guestay
-          </p>
+          <p className="font-serif text-lg text-ink">Guestay</p>
           <div className="mt-0.5 flex items-center gap-2">
             <span className="font-mono text-sm font-medium text-ink">
               {avg.toFixed(1)}
@@ -143,11 +141,10 @@ export function GoogleReviews({ items }: { items: Testimonial[] }) {
         </div>
       </div>
 
-      <div className="group/reviews relative -mx-5 space-y-4 sm:-mx-6 lg:-mx-8">
-        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-cream to-transparent sm:w-16" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-cream to-transparent sm:w-16" />
+      <div className="group/reviews relative -mx-5 sm:-mx-6 lg:-mx-8">
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-cream to-transparent sm:w-20" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-cream to-transparent sm:w-20" />
         <MarqueeRow items={items} />
-        <MarqueeRow items={[...items].reverse()} reverse />
       </div>
     </Section>
   );
