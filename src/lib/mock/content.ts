@@ -1,5 +1,6 @@
 import type {
   FaqItem,
+  NearbyPlace,
   Promotion,
   SiteContact,
   TeamMember,
@@ -64,7 +65,7 @@ export const testimonials: Testimonial[] = [
     quote:
       "I came for a private room and stayed because the kitchen actually felt like a kitchen, not a hotel afterthought. People cooked together without making it weird.",
     stayDuration: "3 months",
-    roomSlug: "full-personal-room",
+    roomSlug: "shared-bedroom-a",
     avatar:
       "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
     rating: 5,
@@ -77,7 +78,7 @@ export const testimonials: Testimonial[] = [
     quote:
       "The personal room gave me a door I could close and a desk for calls. The house rules are short. That matters more than any amenity list.",
     stayDuration: "Monthly",
-    roomSlug: "full-personal-room",
+    roomSlug: "shared-bedroom-a",
     avatar:
       "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
     rating: 5,
@@ -90,7 +91,7 @@ export const testimonials: Testimonial[] = [
     quote:
       "Sharing a room with a friend beat finding a short-term lease. We knew the price on day one, and laundry was never a scavenger hunt.",
     stayDuration: "4 months",
-    roomSlug: "shared-rooms",
+    roomSlug: "shared-bedroom-a",
     avatar:
       "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=200&q=80",
     rating: 5,
@@ -103,7 +104,7 @@ export const testimonials: Testimonial[] = [
     quote:
       "Felt like borrowing a friend's house, not renting a bed. The lounge was lively without being loud, and checkout was painless.",
     stayDuration: "6 weeks",
-    roomSlug: "full-personal-room",
+    roomSlug: "shared-bedroom-a",
     avatar:
       "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80",
     rating: 5,
@@ -116,7 +117,7 @@ export const testimonials: Testimonial[] = [
     quote:
       "Blackout curtains in the shared room saved my sleep schedule. The house was respectful of quiet hours. That alone was worth it.",
     stayDuration: "1 month",
-    roomSlug: "shared-rooms",
+    roomSlug: "shared-bedroom-a",
     avatar:
       "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80",
     rating: 4,
@@ -155,59 +156,99 @@ export const faqs: FaqItem[] = [
     id: "faq_whats_included",
     question: "What is included in the rate?",
     answer:
-      "Indicative monthly rates include utilities, Wi-Fi, and access to shared kitchen and lounge. Linen and towels are provided. Exact inclusions vary by room type and are confirmed when you call.",
+      "Shared-bedroom rates typically include utilities, Wi-Fi, linen, towels, and access to the kitchen and lounge. Flat inclusions vary — confirm on the room page when you pick dates.",
     category: "stay",
   },
   {
     id: "faq_how_to_book",
     question: "How do I book a room?",
     answer:
-      "Call us, message on WhatsApp, or send the contact form. A human confirms availability and pricing with you. There is no self-serve checkout in this phase.",
+      "Choose a room, pick check-in and check-out dates, and reserve online. Your dates are held for two hours while you complete payment on one checkout page. You can still call or WhatsApp us if you prefer a human.",
     category: "booking",
+  },
+  {
+    id: "faq_pricing_tiers",
+    question: "How is the nightly price calculated?",
+    answer:
+      "Longer stays unlock a lower nightly rate automatically. You only see the final total and effective per-night price for your dates — we apply the correct bracket behind the scenes.",
+    category: "payments",
   },
   {
     id: "faq_deposit",
     question: "How does the security deposit work?",
     answer:
-      "We hold a deposit based on the room type. Book directly with Guestay and you receive 10% off that deposit. It is returned after checkout once the room passes a standard inspection.",
+      "We hold a deposit based on the room. Book directly with Guestay and you receive 10% off that deposit. It is returned after checkout once the room passes a standard inspection.",
     category: "payments",
   },
   {
     id: "faq_groups",
     question: "Can we book for a group without paying upfront?",
     answer:
-      "Yes. Groups of 10+ guests can confirm a block with no advance payment under a signed agreement. We collect payment at arrival. Contact us at least two weeks before your dates.",
+      "Yes. Groups of 10+ guests can confirm without an advance payment under our group terms. Use checkout with 10+ guests, or contact us at least two weeks before arrival.",
     category: "payments",
   },
   {
     id: "faq_what_to_bring",
     question: "What should I bring?",
     answer:
-      "Linens and towels are provided. Bring toiletries, a laptop lock if you want one, and whatever makes a shared kitchen feel like yours. We stock basics: oil, salt, coffee, dish soap.",
+      "Linens and towels are provided in shared bedrooms. Bring toiletries and whatever makes a shared kitchen feel like yours. Unfurnished flats expect you to bring furniture.",
     category: "stay",
   },
   {
     id: "faq_work",
     question: "Can I work from the house?",
     answer:
-      "Yes. Wi-Fi is built for video calls, and every personal room has a desk. The lounge is for conversation; private rooms and quiet corners are for focus.",
+      "Yes. Wi-Fi is built for video calls. The lounge is for conversation; quieter corners and exclusive rooms are better for focus.",
     category: "stay",
   },
 ];
 
-/** Factual placeholders. Replace with real venue details before launch. */
+/** Drive times quoted in typical daytime traffic from Bedian Road. */
+export const nearbyPlaces: NearbyPlace[] = [
+  {
+    id: "np_dolmen",
+    name: "Dolmen Mall",
+    kind: "shopping",
+    minutes: 5,
+    note: "Groceries, pharmacy, and dinner without planning ahead.",
+  },
+  {
+    id: "np_hospital",
+    name: "Nearest hospital",
+    kind: "healthcare",
+    minutes: 10,
+    note: "24/7 emergency care a short drive from the house.",
+  },
+  {
+    id: "np_airport",
+    name: "Allama Iqbal Airport",
+    kind: "transport",
+    minutes: 15,
+    note: "Late landings and early flights stay easy.",
+  },
+];
+
 export const siteContact: SiteContact = {
-  email: "hello@guestay.example",
-  phone: "+15550198240",
-  phoneDisplay: "+1 (555) 019-8240",
-  whatsapp: "15550198240",
+  email: "hello@guestay.pk",
+  phone: "+923073050505",
+  phoneDisplay: "0307 3050505",
+  phoneSecondary: "+923410050505",
+  phoneSecondaryDisplay: "0341 0050505",
+  whatsapp: "923073050505",
   whatsappDisplay: "WhatsApp",
-  addressLine1: "1847 Willow Avenue",
-  addressLine2: "Suite B",
-  city: "Oakridge",
-  region: "OR",
-  postalCode: "97463",
-  country: "United States",
-  mapEmbedNote: "Map placeholder. Replace with a Google Maps embed for the final address.",
+  addressLine1: "18-B, Street -1, Sadaat Town",
+  addressLine2: "Bedian Road",
+  city: "Lahore Cantt",
+  region: "Lahore",
+  postalCode: "",
+  country: "Pakistan",
+  mapUrl: "https://maps.app.goo.gl/WeV5BdTF3UPjTi8H8",
+  mapEmbedUrl:
+    "https://www.google.com/maps?q=31.4731698,74.4240163&z=16&output=embed",
+  mapEmbedNote: "Guestay Apartments on Bedian Road, Lahore Cantt.",
   hours: "Front desk · Daily 9am–7pm",
+  socialInstagram: process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM || undefined,
+  socialFacebook: process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK || undefined,
+  socialTiktok: process.env.NEXT_PUBLIC_SOCIAL_TIKTOK || undefined,
+  socialYoutube: process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE || undefined,
 };

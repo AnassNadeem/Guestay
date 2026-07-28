@@ -1,28 +1,42 @@
 import type {
   Amenity,
   FaqItem,
+  NearbyPlace,
   Promotion,
   Room,
+  RoomCategory,
   SiteContact,
   TeamMember,
   Testimonial,
 } from "@/types";
-import { faqs, promotions, siteContact, team, testimonials } from "./content";
+import {
+  faqs,
+  nearbyPlaces,
+  promotions,
+  siteContact,
+  team,
+  testimonials,
+} from "./content";
 import { amenitiesCatalog, rooms } from "./rooms";
-
-/**
- * Data access layer. Keep components depending on these functions,
- * not on raw arrays, so Supabase can replace the implementation later.
- */
 
 export async function getRooms(filters?: {
   type?: Room["type"] | "all";
+  category?: RoomCategory | "all";
   featured?: boolean;
+  status?: Room["status"];
 }): Promise<Room[]> {
   let result = [...rooms];
 
   if (filters?.featured) {
     result = result.filter((r) => r.featured);
+  }
+  if (filters?.status) {
+    result = result.filter((r) => r.status === filters.status);
+  } else {
+    result = result.filter((r) => r.status === "active");
+  }
+  if (filters?.category && filters.category !== "all") {
+    result = result.filter((r) => r.category === filters.category);
   }
   if (filters?.type && filters.type !== "all") {
     result = result.filter((r) => r.type === filters.type);
@@ -32,11 +46,11 @@ export async function getRooms(filters?: {
 }
 
 export async function getRoomBySlug(slug: string): Promise<Room | null> {
-  return rooms.find((r) => r.slug === slug) ?? null;
+  return rooms.find((r) => r.slug === slug && r.status !== "archived") ?? null;
 }
 
-export async function getFeaturedRooms(limit = 3): Promise<Room[]> {
-  return rooms.filter((r) => r.featured).slice(0, limit);
+export async function getFeaturedRooms(limit = 5): Promise<Room[]> {
+  return rooms.filter((r) => r.featured && r.status === "active").slice(0, limit);
 }
 
 export async function getAmenities(): Promise<Amenity[]> {
@@ -70,5 +84,14 @@ export async function getFaqs(): Promise<FaqItem[]> {
 }
 
 export async function getSiteContact(): Promise<SiteContact> {
-  return siteContact;
+  return {
+    ...siteContact,
+    phone: process.env.NEXT_PUBLIC_PHONE || siteContact.phone,
+    whatsapp: process.env.NEXT_PUBLIC_WHATSAPP || siteContact.whatsapp,
+    email: process.env.NEXT_PUBLIC_CONTACT_EMAIL || siteContact.email,
+  };
+}
+
+export async function getNearbyPlaces(): Promise<NearbyPlace[]> {
+  return [...nearbyPlaces].sort((a, b) => a.minutes - b.minutes);
 }
