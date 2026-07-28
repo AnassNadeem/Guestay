@@ -1,4 +1,4 @@
-import { EnquireCard } from "@/components/rooms/EnquireCard";
+import { BookingQuoteCard } from "@/components/rooms/BookingQuoteCard";
 import { RoomGallery } from "@/components/rooms/RoomGallery";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -28,10 +28,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-const typeLabel = {
-  shared: "Shared",
-  personal: "Personal",
-  flat: "2-Bedroom Flat",
+const categoryLabel = {
+  shared_bedroom: "Shared bedroom",
+  private_room: "Private room",
+  flat: "Flat",
 } as const;
 
 export default async function RoomDetailPage({ params }: Props) {
@@ -46,12 +46,12 @@ export default async function RoomDetailPage({ params }: Props) {
   return (
     <div className="bg-paper pt-24 md:pt-28">
       <div className="container-page pb-16 md:pb-24">
-        <nav className="mb-6 text-sm text-ink-soft">
+        <nav className="mb-6 text-sm text-ink-muted">
           <Link href="/rooms" className="hover:text-olive">
             Rooms
           </Link>
-          <span className="mx-2">/</span>
-          <span className="text-ink-muted">{room.name}</span>
+          <span className="mx-2 text-ink-soft">/</span>
+          <span className="text-ink">{room.name}</span>
         </nav>
 
         <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:gap-12">
@@ -59,8 +59,8 @@ export default async function RoomDetailPage({ params }: Props) {
             <RoomGallery images={room.images} name={room.name} />
 
             <div className="mt-8">
-              <Badge tone="cream">{typeLabel[room.type]}</Badge>
-              <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-olive md:text-4xl">
+              <Badge tone="cream">{categoryLabel[room.category]}</Badge>
+              <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-ink md:text-4xl">
                 {room.name}
               </h1>
               <p className="mt-3 max-w-2xl text-lg text-ink-muted">
@@ -80,10 +80,12 @@ export default async function RoomDetailPage({ params }: Props) {
                     {room.capacity} {room.capacity === 1 ? "guest" : "guests"}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-ink-soft">Beds</dt>
-                  <dd className="mt-0.5 font-medium text-ink">{room.beds}</dd>
-                </div>
+                {room.beds > 0 && (
+                  <div>
+                    <dt className="text-ink-soft">Beds</dt>
+                    <dd className="mt-0.5 font-medium text-ink">{room.beds}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-ink-soft">Bedrooms</dt>
                   <dd className="mt-0.5 font-medium text-ink">
@@ -93,21 +95,22 @@ export default async function RoomDetailPage({ params }: Props) {
                 <div>
                   <dt className="text-ink-soft">From</dt>
                   <dd className="mt-0.5 font-mono font-medium text-ink">
-                    {formatCurrency(room.priceFrom, room.currency)}/mo
+                    {formatCurrency(room.priceFrom, room.currency)}/night
                   </dd>
                 </div>
               </dl>
 
               <div className="mt-8 max-w-2xl">
                 <h2 className="font-display text-xl font-semibold text-ink">
-                  About this room
+                  About this unit
                 </h2>
                 <p className="mt-3 leading-relaxed text-ink-muted">
                   {room.longDescription}
                 </p>
-                <p className="mt-4 text-sm text-ink-soft">
-                  Indicative pricing only. Contact us for current availability
-                  and exact pricing.
+                <p className="mt-4 text-sm text-ink-muted">
+                  {room.allowsSharedBooking && room.allowsExclusiveBooking
+                    ? "Book by the bed, or take the whole room exclusively at a higher nightly rate."
+                    : "This unit is booked as a whole."}
                 </p>
               </div>
 
@@ -146,7 +149,7 @@ export default async function RoomDetailPage({ params }: Props) {
           </div>
 
           <div>
-            <EnquireCard room={room} contact={contact} />
+            <BookingQuoteCard room={room} contact={contact} />
           </div>
         </div>
       </div>
