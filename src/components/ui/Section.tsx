@@ -33,13 +33,9 @@ export function Section({
             )}
           >
             <div className={cn(actions && align === "left" && "max-w-xl")}>
-              {eyebrow && (
-                <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-sage-600">
-                  {eyebrow}
-                </p>
-              )}
+              {eyebrow && <p className="text-eyebrow mb-3">{eyebrow}</p>}
               {title && (
-                <h2 className="text-3xl font-semibold tracking-tight text-ink md:text-4xl text-balance">
+                <h2 className="font-serif text-3xl leading-tight text-ink md:text-[2.6rem] text-balance">
                   {title}
                 </h2>
               )}
