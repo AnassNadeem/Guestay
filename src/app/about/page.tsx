@@ -1,5 +1,4 @@
 import { AboutContent } from "@/components/about/AboutContent";
-import { getTeam } from "@/lib/mock";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -8,7 +7,6 @@ export const metadata: Metadata = {
     "Guestay is a small coliving house built for clear rates, private rooms, and shared living that feels adult.",
 };
 
-export default async function AboutPage() {
-  const team = await getTeam();
-  return <AboutContent team={team} />;
+export default function AboutPage() {
+  return <AboutContent />;
 }

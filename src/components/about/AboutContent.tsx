@@ -6,7 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Image from "next/image";
 import Link from "next/link";
 import { useRef } from "react";
-import type { TeamMember } from "@/types";
+import { nearbyPlacesConfig } from "@/lib/siteConfig";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -25,7 +25,7 @@ const values = [
   },
 ];
 
-export function AboutContent({ team }: { team: TeamMember[] }) {
+export function AboutContent() {
   const storyRef = useRef<HTMLDivElement>(null);
   const pinRef = useRef<HTMLDivElement>(null);
 
@@ -116,13 +116,14 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
             ref={storyRef}
             className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16"
           >
-            <div className="relative aspect-[4/5] overflow-hidden rounded-card bg-cream-200 shadow-soft">
+            <div className="relative aspect-[3/2] overflow-hidden rounded-card bg-cream-200 shadow-soft">
               <Image
-                src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80"
-                alt="Sunlit shared living room with soft seating"
+                src="/images/house-front.jpg"
+                alt="Guestay house front on Bedian Road"
                 fill
                 sizes="(max-width: 1024px) 100vw, 40vw"
-                className="object-cover"
+                className="object-cover object-center"
+                priority
               />
             </div>
             <div className="flex flex-col justify-center">
@@ -189,67 +190,32 @@ export function AboutContent({ team }: { team: TeamMember[] }) {
       </section>
 
       <section id="location" className="bg-paper py-section-sm md:py-section">
-        <div className="container-page grid gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
-          <div>
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-sage-600">
-              Location
-            </p>
-            <h2 className="mt-3 font-display text-3xl font-semibold text-ink md:text-4xl">
-              On Bedian Road, Lahore Cantt
-            </h2>
-            <p className="mt-4 leading-relaxed text-ink-muted">
-              We are in Sadaat Town off Bedian Road — a residential pocket of
-              Lahore Cantt with everyday amenities nearby. Drop by during front
-              desk hours, or open the map on Contact for directions.
-            </p>
-            <p className="mt-4 text-sm text-ink-soft">
-              18-B, Street -1, Sadaat Town, Bedian Road, Lahore Cantt
-            </p>
-          </div>
-          <div className="relative aspect-[5/4] overflow-hidden rounded-card bg-cream-200 shadow-soft">
-            <Image
-              src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1400&q=80"
-              alt="Tree-lined residential street at golden hour"
-              fill
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              className="object-cover"
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="border-t border-olive/10 bg-paper py-section-sm md:py-section">
         <div className="container-page">
           <div className="max-w-xl">
             <p className="font-mono text-xs uppercase tracking-[0.18em] text-sage-600">
-              Team
+              Nearby
             </p>
             <h2 className="mt-3 font-display text-3xl font-semibold text-ink md:text-4xl">
-              The people who keep the house running
+              Around the house
             </h2>
+            <p className="mt-4 leading-relaxed text-ink-muted">
+              18-B, Street -1, Sadaat Town, Bedian Road, Lahore Cantt
+            </p>
           </div>
-          <div className="mt-12 grid gap-8 sm:grid-cols-3">
-            {team.map((member) => (
-              <article key={member.id}>
-                <div className="relative aspect-[4/5] overflow-hidden rounded-card bg-cream-200">
-                  <Image
-                    src={member.image}
-                    alt={member.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, 33vw"
-                    className="object-cover"
-                  />
-                </div>
-                <h3 className="mt-4 font-display text-xl font-semibold text-ink">
-                  {member.name}
-                </h3>
-                <p className="mt-1 text-sm text-sage-600">{member.role}</p>
-                <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-                  {member.bio}
+          {/* PLACEHOLDER until real nearby list is provided */}
+          <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {nearbyPlacesConfig.map((place) => (
+              <li
+                key={place.name}
+                className="rounded-soft border border-olive/10 bg-white/70 px-4 py-3"
+              >
+                <p className="font-medium text-ink">{place.name}</p>
+                <p className="mt-1 text-sm text-ink-muted">
+                  {place.category} · ~{place.walkMinutes} min walk
                 </p>
-              </article>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </section>
     </>
