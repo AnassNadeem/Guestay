@@ -39,7 +39,7 @@ const GRACE_SECONDS = Number(
 export function CheckoutForm() {
   const params = useSearchParams();
   const router = useRouter();
-  const { items: cartItems, clear: clearCart } = useCart();
+  const { items: cartItems, clear: clearCart, soonestHoldExpiresAt } = useCart();
   const { toast } = useToast();
 
   const fromCart = params.get("cart") === "1";
@@ -54,6 +54,7 @@ export function CheckoutForm() {
   const [phone, setPhone] = useState("");
   const [payOption, setPayOption] = useState<"full" | "half" | "none">("full");
   const [method, setMethod] = useState<PayMethod>("card");
+  const [walletPhone, setWalletPhone] = useState("");
   const [tos, setTos] = useState(false);
   const [shakeTos, setShakeTos] = useState(false);
   const [quote, setQuote] = useState<QuotePayload | null>(null);
@@ -64,8 +65,36 @@ export function CheckoutForm() {
   const [error, setError] = useState<string | null>(null);
   const [sessionModal, setSessionModal] = useState(false);
   const [graceLeft, setGraceLeft] = useState(GRACE_SECONDS);
+  const [safepayToken, setSafepayToken] = useState<string | null>(null);
   const holdCreated = useRef(false);
   const graceTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  async function refreshSafepayToken() {
+    try {
+      const res = await fetch("/api/payments/safepay-token", {
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (data.tbt) setSafepayToken(data.tbt as string);
+      return (data.tbt as string) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    void refreshSafepayToken();
+  }, []);
+
+  // Prefer holds already created on Add / Book Now
+  useEffect(() => {
+    if (soonestHoldExpiresAt) {
+      setHoldExpiresAt(soonestHoldExpiresAt);
+      const withId = cartItems.find((i) => i.bookingId);
+      if (withId?.bookingId) setBookingId(withId.bookingId);
+      holdCreated.current = true;
+    }
+  }, [soonestHoldExpiresAt, cartItems]);
 
   const lines = useMemo(() => {
     if (fromCart && cartItems.length > 0) {
@@ -193,6 +222,11 @@ export function CheckoutForm() {
     setLoading(true);
     setError(null);
     try {
+      // Silent token refresh if expired / missing before submit
+      if (!safepayToken && !isGroup) {
+        await refreshSafepayToken();
+      }
+
       const payload =
         lines && lines.length > 0
           ? {
@@ -227,8 +261,21 @@ export function CheckoutForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Payment failed");
+      let data = await res.json();
+
+      // One silent retry with fresh Safepay token on payment gateway failure
+      if (!res.ok && data.error?.toLowerCase?.().includes("safepay")) {
+        await refreshSafepayToken();
+        const retry = await fetch("/api/bookings/reserve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        data = await retry.json();
+        if (!retry.ok) throw new Error(data.error || "Payment failed");
+      } else if (!res.ok) {
+        throw new Error(data.error || "Payment failed");
+      }
 
       setBookingId(data.booking.id);
       if (data.booking.holdExpiresAt) {
@@ -293,9 +340,6 @@ export function CheckoutForm() {
             <h1 className="font-display text-3xl text-ink md:text-4xl">
               Checkout
             </h1>
-            <p className="mt-2 text-ink-muted">
-              Guest details, order summary, and payment — all on one page.
-            </p>
           </div>
 
           <section className="space-y-3">
@@ -393,6 +437,49 @@ export function CheckoutForm() {
                   ))}
                 </div>
               </fieldset>
+
+              {(method === "jazzcash" || method === "easypaisa") && (
+                <label className="block text-sm">
+                  <span className="text-ink-muted">
+                    Wallet mobile number
+                  </span>
+                  <input
+                    required
+                    type="tel"
+                    value={walletPhone}
+                    onChange={(e) => setWalletPhone(e.target.value)}
+                    className="mt-1 h-11 w-full rounded-soft border border-olive/15 bg-white px-3 text-sm"
+                    placeholder="03XX XXXXXXX"
+                  />
+                  <span className="mt-1 block text-xs text-ink-soft">
+                    PIN/OTP is entered inside Safepay&apos;s secure widget.
+                  </span>
+                </label>
+              )}
+
+              {method === "card" && (
+                <div className="rounded-soft border border-olive/10 bg-cream-100/60 p-4 text-sm text-ink-muted">
+                  Card details are collected in Safepay&apos;s secure hosted
+                  fields after you confirm — the card number never touches our
+                  servers.
+                  {safepayToken ? (
+                    <span className="mt-1 block text-xs text-olive">
+                      Payment session ready
+                    </span>
+                  ) : (
+                    <span className="mt-1 block text-xs text-ink-soft">
+                      Preparing secure session…
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {method === "raast" && (
+                <p className="text-xs text-ink-soft">
+                  You&apos;ll complete Raast inside Safepay&apos;s hosted
+                  checkout — no bank details are collected on this page.
+                </p>
+              )}
             </section>
           )}
 
@@ -480,12 +567,23 @@ export function CheckoutForm() {
               <li className="text-sm text-ink-muted">Loading quote…</li>
             )}
           </ul>
-          <div className="mt-4 flex justify-between border-t border-olive/10 pt-4">
+          <div className="mt-4 flex justify-between border-t border-olive/10 pt-4 text-sm text-ink-muted">
+            {/* GST slot — add tax line here later without restructuring */}
+            <span>Tax</span>
+            <span className="font-mono">—</span>
+          </div>
+          <div className="mt-2 flex justify-between">
             <span className="text-ink-muted">Due now</span>
             <span className="font-mono text-lg font-medium text-olive">
               {formatCurrency(amountNow)}
             </span>
           </div>
+          <a
+            href="/booking-summary"
+            className="mt-4 inline-block text-sm text-olive underline"
+          >
+            Edit
+          </a>
         </aside>
       </form>
 
