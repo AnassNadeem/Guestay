@@ -15,6 +15,7 @@ import { UsersPage } from "./pages/UsersPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { OtaPage } from "./pages/OtaPage";
 import { WalkInPage } from "./pages/WalkInPage";
+import { AuditLogPage } from "./pages/AuditLogPage";
 import { LoginPage } from "./pages/LoginPage";
 
 export function App() {
@@ -34,6 +35,8 @@ export function App() {
           { name: "refunds", list: "/refunds" },
           { name: "users", list: "/users" },
           { name: "ota", list: "/ota" },
+          { name: "walk-in", list: "/walk-in" },
+          { name: "audit_log", list: "/audit-log" },
           { name: "settings", list: "/settings" },
         ]}
         options={{ syncWithLocation: true, warnWhenUnsavedChanges: true }}
@@ -59,6 +62,7 @@ export function App() {
             <Route path="users" element={<UsersPage />} />
             <Route path="ota" element={<OtaPage />} />
             <Route path="walk-in" element={<WalkInPage />} />
+            <Route path="audit-log" element={<AuditLogPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
