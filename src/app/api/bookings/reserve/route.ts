@@ -193,20 +193,55 @@ async function ensureGuestAccount(email: string, fullName: string) {
     );
     if (!hasSupabase()) return;
     const sb = createServiceSupabase();
-    const { data: listed } = await sb.auth.admin.listUsers({ perPage: 200 });
+
+    const { data: listed } = await sb.auth.admin.listUsers({ perPage: 1000 });
     const existing = listed?.users?.find(
       (u) => u.email?.toLowerCase() === email.toLowerCase(),
     );
-    if (existing) return;
-    await sb.auth.admin.createUser({
-      email,
-      email_confirm: false,
-      user_metadata: { full_name: fullName },
-    });
-    await sb.auth.admin.generateLink({
+
+    if (!existing) {
+      await sb.auth.admin.createUser({
+        email,
+        email_confirm: false,
+        user_metadata: { full_name: fullName, display_name: fullName },
+      });
+    }
+
+    const { data: linkData } = await sb.auth.admin.generateLink({
       type: "magiclink",
       email,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback?next=/account`,
+      },
     });
+
+    const actionLink = linkData?.properties?.action_link;
+    if (!actionLink) return;
+
+    // Prefer email_outbox + Worker; also try EMAIL_WORKER_URL directly
+    try {
+      await sb.from("email_outbox").insert({
+        to_email: email,
+        template: "magic_link",
+        payload: { actionLink, fullName },
+        status: "pending",
+      });
+    } catch {
+      /* outbox optional */
+    }
+
+    const url = process.env.EMAIL_WORKER_URL;
+    if (url) {
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          template: "magic_link",
+          to: email,
+          payload: { actionLink, fullName },
+        }),
+      });
+    }
   } catch {
     /* auth optional until credentials wired */
   }

@@ -1,4 +1,4 @@
-import { extendLocalHold, getLocalBooking } from "@/lib/bookings/local-store";
+import { extendRoomHold } from "@/lib/bookings/holds";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -14,22 +14,15 @@ export async function POST(req: Request) {
     }
 
     const minutes = Number(process.env.BOOKING_HOLD_MINUTES || 15);
-    const updated = extendLocalHold(key, minutes);
+    const updated = await extendRoomHold(key, minutes);
     if (!updated) {
-      const existing = getLocalBooking(key);
-      if (!existing) {
-        return NextResponse.json({ error: "Booking not found" }, { status: 404 });
-      }
       return NextResponse.json(
         { error: "Hold can no longer be extended" },
         { status: 409 },
       );
     }
 
-    return NextResponse.json({
-      holdExpiresAt: updated.holdExpiresAt,
-      booking: updated,
-    });
+    return NextResponse.json(updated);
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Extend failed" },

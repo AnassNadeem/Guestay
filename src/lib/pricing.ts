@@ -78,8 +78,16 @@ export function quoteStay(input: {
     checkOut,
     guestCount,
     isDirect = true,
-    groupNoAdvanceMinGuests = 10,
-    depositDiscountRate = 0.1,
+    groupNoAdvanceMinGuests = Number(
+      process.env.GROUP_NO_ADVANCE_MIN_GUESTS ||
+        process.env.NEXT_PUBLIC_GROUP_NO_ADVANCE_MIN_GUESTS ||
+        10,
+    ),
+    depositDiscountRate = Number(
+      process.env.DIRECT_BOOKING_DEPOSIT_DISCOUNT ||
+        process.env.NEXT_PUBLIC_DIRECT_BOOKING_DEPOSIT_DISCOUNT ||
+        0.1,
+    ),
   } = input;
 
   const nights = nightsBetween(checkIn, checkOut);
