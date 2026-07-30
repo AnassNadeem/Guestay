@@ -69,7 +69,7 @@ export function DateRangeCalendar({
   }
 
   return (
-    <div className={cn("w-full select-none p-4", className)}>
+    <div className={cn("mx-auto w-full max-w-[320px] select-none p-3", className)}>
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"

@@ -7,7 +7,8 @@ import { format, parseISO } from "date-fns";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 function formatDisplay(ymd: string | null, placeholder: string) {
   if (!ymd) return placeholder;
@@ -24,6 +25,54 @@ export type SearchValues = {
   guests: number;
   rooms: number;
 };
+
+type PopoverPos = {
+  top: number;
+  left: number;
+  width: number;
+  placement: "above" | "below";
+};
+
+const DATES_POPOVER_H = 360;
+const GUESTS_POPOVER_H = 120;
+const POPOVER_GAP = 10;
+const VIEWPORT_PAD = 12;
+
+function computePopoverPos(
+  anchor: DOMRect,
+  estimatedHeight: number,
+  preferredWidth: number,
+  centerUnder = false,
+): PopoverPos {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const width = Math.min(Math.max(preferredWidth, 280), vw - VIEWPORT_PAD * 2);
+
+  const spaceBelow = vh - anchor.bottom - VIEWPORT_PAD;
+  const spaceAbove = anchor.top - VIEWPORT_PAD;
+  const placement: "above" | "below" =
+    spaceBelow < estimatedHeight + POPOVER_GAP && spaceAbove > spaceBelow
+      ? "above"
+      : "below";
+
+  const top =
+    placement === "below"
+      ? anchor.bottom + POPOVER_GAP
+      : Math.max(
+          VIEWPORT_PAD,
+          anchor.top - estimatedHeight - POPOVER_GAP,
+        );
+
+  let left = centerUnder
+    ? anchor.left + anchor.width / 2 - width / 2
+    : anchor.left;
+  left = Math.min(
+    Math.max(VIEWPORT_PAD, left),
+    vw - width - VIEWPORT_PAD,
+  );
+
+  return { top, left, width, placement };
+}
 
 export function SearchPill({
   initial,
@@ -48,7 +97,9 @@ export function SearchPill({
   const [openSeg, setOpenSeg] = useState<"dates" | "guests" | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -59,11 +110,13 @@ export function SearchPill({
     return () => mq.removeEventListener("change", apply);
   }, []);
 
+  // Outside-click: ignore clicks inside the pill OR the portaled popover
   useEffect(() => {
     function onDoc(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) {
-        setOpenSeg(null);
-      }
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target)) return;
+      if (popoverRef.current?.contains(target)) return;
+      setOpenSeg(null);
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -72,7 +125,13 @@ export function SearchPill({
   function onDatesChange(ci: string | null, co: string | null) {
     setCheckIn(ci);
     setCheckOut(co);
+    if (ci) {
+      setDateError((err) =>
+        err === "Please select a check-in date" ? null : err,
+      );
+    }
     if (ci && co) {
+      setDateError(null);
       if (closeTimer.current) clearTimeout(closeTimer.current);
       closeTimer.current = setTimeout(() => {
         setOpenSeg(null);
@@ -81,18 +140,32 @@ export function SearchPill({
     }
   }
 
-  function submit() {
+  function submit(): boolean {
+    if (!checkIn) {
+      setDateError("Please select a check-in date");
+      if (!isMobile && !compact) setOpenSeg("dates");
+      else setSheetOpen(true);
+      return false;
+    }
+    if (!checkOut) {
+      setDateError("Please select a check-out date");
+      if (!isMobile && !compact) setOpenSeg("dates");
+      else setSheetOpen(true);
+      return false;
+    }
+    setDateError(null);
     const values: SearchValues = { checkIn, checkOut, guests, rooms };
     if (onSearch) {
       onSearch(values);
-      return;
+      return true;
     }
     const params = new URLSearchParams();
-    if (checkIn) params.set("checkin", checkIn);
-    if (checkOut) params.set("checkout", checkOut);
+    params.set("checkin", checkIn);
+    params.set("checkout", checkOut);
     params.set("guests", String(guests));
     params.set("rooms", String(rooms));
     router.push(`/rooms?${params.toString()}`);
+    return true;
   }
 
   const popoverMotion = reduced
@@ -113,11 +186,79 @@ export function SearchPill({
         transition: { duration: 0.22, ease: "easeOut" as const },
       };
 
+  const [popoverPos, setPopoverPos] = useState<PopoverPos | null>(null);
+
+  const updatePopoverPos = useCallback(() => {
+    if (!openSeg || !wrapRef.current) {
+      setPopoverPos(null);
+      return;
+    }
+    const rect = wrapRef.current.getBoundingClientRect();
+    if (openSeg === "dates") {
+      setPopoverPos(
+        computePopoverPos(
+          rect,
+          DATES_POPOVER_H,
+          Math.min(rect.width, 340),
+          false,
+        ),
+      );
+    } else {
+      setPopoverPos(
+        computePopoverPos(rect, GUESTS_POPOVER_H, 280, true),
+      );
+    }
+  }, [openSeg]);
+
+  useLayoutEffect(() => {
+    updatePopoverPos();
+  }, [updatePopoverPos]);
+
+  useEffect(() => {
+    if (!openSeg) return;
+    const onWin = () => updatePopoverPos();
+    window.addEventListener("resize", onWin);
+    window.addEventListener("scroll", onWin, true);
+    return () => {
+      window.removeEventListener("resize", onWin);
+      window.removeEventListener("scroll", onWin, true);
+    };
+  }, [openSeg, updatePopoverPos]);
+
+  // After mount, remeasure with actual popover height when available
+  useLayoutEffect(() => {
+    if (!openSeg || !popoverRef.current || !wrapRef.current) return;
+    const measured = popoverRef.current.getBoundingClientRect().height;
+    if (!measured) return;
+    const rect = wrapRef.current.getBoundingClientRect();
+    const next =
+      openSeg === "dates"
+        ? computePopoverPos(
+            rect,
+            measured,
+            Math.min(rect.width, 340),
+            false,
+          )
+        : computePopoverPos(rect, measured, 280, true);
+    setPopoverPos((prev) => {
+      if (
+        prev &&
+        prev.top === next.top &&
+        prev.left === next.left &&
+        prev.placement === next.placement
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, [openSeg, checkIn, checkOut]);
+
   const calendar = (
     <DateRangeCalendar
       checkIn={checkIn}
       checkOut={checkOut}
       onChange={onDatesChange}
+      className="mx-auto max-w-[320px]"
     />
   );
 
@@ -128,7 +269,80 @@ export function SearchPill({
     </div>
   );
 
+  const errorMessage = dateError ? (
+    <p
+      role="alert"
+      className="mt-2 text-center text-sm font-medium text-red-600"
+    >
+      {dateError}
+    </p>
+  ) : null;
+
   if (isMobile || compact) {
+    const sheet =
+      typeof document !== "undefined"
+        ? createPortal(
+            <AnimatePresence>
+              {sheetOpen ? (
+                <>
+                  <motion.div
+                    key="search-sheet-backdrop"
+                    className="fixed inset-0 z-[90] bg-ink/40"
+                    initial={reduced ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    onClick={() => setSheetOpen(false)}
+                  />
+                  <motion.div
+                    key="search-sheet"
+                    className="fixed inset-x-0 bottom-0 z-[100] max-h-[92svh] overflow-y-auto rounded-t-[1.25rem] bg-cream-50 shadow-lift"
+                    {...sheetMotion}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Search stays"
+                  >
+                    <div className="sticky top-0 z-10 flex items-center justify-between border-b border-olive/10 bg-cream-50 px-5 py-4">
+                      <p className="font-display text-lg text-ink">Search</p>
+                      <button
+                        type="button"
+                        aria-label="Close"
+                        onClick={() => setSheetOpen(false)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-olive hover:bg-sage/20"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    {calendar}
+                    {steppers}
+                    <div className="sticky bottom-0 z-10 border-t border-olive/10 bg-cream-50 p-4">
+                      {dateError && (
+                        <p
+                          role="alert"
+                          className="mb-3 text-center text-sm font-medium text-red-600"
+                        >
+                          {dateError}
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (submit()) setSheetOpen(false);
+                        }}
+                        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-sage text-base font-medium text-white transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        <Search className="h-5 w-5" />
+                        Search
+                      </button>
+                    </div>
+                  </motion.div>
+                </>
+              ) : null}
+            </AnimatePresence>,
+            document.body,
+          )
+        : null;
+
     return (
       <div className={cn("w-full", className)} ref={wrapRef}>
         <button
@@ -149,54 +363,8 @@ export function SearchPill({
             </span>
           </span>
         </button>
-
-        <AnimatePresence>
-          {sheetOpen && (
-            <>
-              <motion.div
-                className="fixed inset-0 z-[60] bg-ink/40"
-                initial={reduced ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                onClick={() => setSheetOpen(false)}
-              />
-              <motion.div
-                className="fixed inset-x-0 bottom-0 z-[70] max-h-[92svh] overflow-y-auto rounded-t-[1.25rem] bg-cream-50 shadow-lift"
-                {...sheetMotion}
-                role="dialog"
-                aria-label="Search stays"
-              >
-                <div className="sticky top-0 flex items-center justify-between border-b border-olive/10 bg-cream-50 px-5 py-4">
-                  <p className="font-display text-lg text-ink">Search</p>
-                  <button
-                    type="button"
-                    aria-label="Close"
-                    onClick={() => setSheetOpen(false)}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-olive hover:bg-sage/20"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                {calendar}
-                {steppers}
-                <div className="sticky bottom-0 border-t border-olive/10 bg-cream-50 p-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSheetOpen(false);
-                      submit();
-                    }}
-                    className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-sage text-base font-medium text-white transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <Search className="h-5 w-5" />
-                    Search
-                  </button>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+        {errorMessage}
+        {sheet}
       </div>
     );
   }
@@ -274,37 +442,64 @@ export function SearchPill({
           </button>
         </div>
       </div>
+      {errorMessage}
 
-      <AnimatePresence>
-        {openSeg === "dates" && (
-          <motion.div
-            key="dates-pop"
-            className="absolute left-0 right-0 top-[calc(100%+10px)] z-40 overflow-hidden rounded-2xl border border-olive/10 bg-white shadow-lift"
-            {...popoverMotion}
-            exit={
-              reduced
-                ? undefined
-                : { opacity: 0, transition: { duration: 0.12, ease: "easeIn" } }
-            }
-          >
-            {calendar}
-          </motion.div>
+      {typeof document !== "undefined" &&
+        openSeg &&
+        popoverPos &&
+        createPortal(
+          <AnimatePresence>
+            {openSeg === "dates" && (
+              <motion.div
+                key="dates-pop"
+                ref={popoverRef}
+                className="fixed z-[80] overflow-hidden rounded-2xl border border-olive/10 bg-white shadow-lift"
+                style={{
+                  top: popoverPos.top,
+                  left: popoverPos.left,
+                  width: Math.max(popoverPos.width, 300),
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                {...popoverMotion}
+                exit={
+                  reduced
+                    ? undefined
+                    : {
+                        opacity: 0,
+                        transition: { duration: 0.12, ease: "easeIn" },
+                      }
+                }
+              >
+                {calendar}
+              </motion.div>
+            )}
+            {openSeg === "guests" && (
+              <motion.div
+                key="guests-pop"
+                ref={popoverRef}
+                className="fixed z-[80] overflow-hidden rounded-2xl border border-olive/10 bg-white shadow-lift"
+                style={{
+                  top: popoverPos.top,
+                  left: popoverPos.left,
+                  width: popoverPos.width,
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                {...popoverMotion}
+                exit={
+                  reduced
+                    ? undefined
+                    : {
+                        opacity: 0,
+                        transition: { duration: 0.12, ease: "easeIn" },
+                      }
+                }
+              >
+                {steppers}
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-        {openSeg === "guests" && (
-          <motion.div
-            key="guests-pop"
-            className="absolute left-1/2 top-[calc(100%+10px)] z-40 -translate-x-1/2 overflow-hidden rounded-2xl border border-olive/10 bg-white shadow-lift"
-            {...popoverMotion}
-            exit={
-              reduced
-                ? undefined
-                : { opacity: 0, transition: { duration: 0.12, ease: "easeIn" } }
-            }
-          >
-            {steppers}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

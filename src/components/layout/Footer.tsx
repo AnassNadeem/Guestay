@@ -28,7 +28,7 @@ export function Footer() {
 
   return (
     <footer className="border-t border-olive/10 bg-cream-100">
-      <div className="container-page grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:py-14">
+      <div className="container-page grid gap-8 py-8 sm:grid-cols-2 lg:grid-cols-4 lg:py-10">
         <div className="max-w-sm">
           <Link
             href="/"
@@ -52,12 +52,8 @@ export function Footer() {
               className="h-[1.35rem] w-auto"
             />
           </Link>
-          <p className="mt-4 text-sm leading-relaxed text-ink-muted">
-            Shared bedrooms and flats on Bedian Road, Lahore Cantt. Clear rates,
-            direct booking, and a house kept ready.
-          </p>
-          <p className="mt-3 text-xs text-ink-soft">
-            Promo offers live in the corner button — look for the tag icon.
+          <p className="mt-3 text-sm leading-relaxed text-ink-muted">
+            Shared bedrooms and flats on Bedian Road, Lahore Cantt.
           </p>
         </div>
 

@@ -1,10 +1,10 @@
 "use client";
 
+import { useCartOptional } from "@/components/booking/CartProvider";
 import { ProfileMenu } from "@/components/auth/ProfileMenu";
-import { siteContact } from "@/lib/mock/content";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Briefcase, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -14,6 +14,34 @@ const links = [
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
 ];
+
+const PHONE_DISPLAY = "03073050505";
+const PHONE_HREF = "tel:03073050505";
+
+function MyBookingsLink({ className }: { className?: string }) {
+  const cart = useCartOptional();
+  const count = cart?.count ?? 0;
+
+  return (
+    <Link
+      href="/booking-summary"
+      aria-label={
+        count > 0 ? `My Bookings, ${count} rooms` : "My Bookings"
+      }
+      className={cn(
+        "relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-olive/20 bg-white text-olive transition-all hover:scale-[1.02] hover:bg-cream-50 active:scale-[0.98]",
+        className,
+      )}
+    >
+      <Briefcase className="h-4 w-4" strokeWidth={1.75} />
+      {count > 0 && (
+        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-olive px-1 text-[0.625rem] font-medium leading-none text-cream-50">
+          {count > 9 ? "9+" : count}
+        </span>
+      )}
+    </Link>
+  );
+}
 
 export function Nav() {
   const pathname = usePathname();
@@ -41,13 +69,13 @@ export function Nav() {
     >
       <div
         className={cn(
-          "container-page flex items-center justify-between transition-all duration-300 ease-brand",
+          "container-page relative flex items-center justify-between transition-all duration-300 ease-brand",
           scrolled ? "h-16" : "h-16 md:h-[4.75rem]",
         )}
       >
         <Link
           href="/"
-          className="flex items-center gap-2.5"
+          className="relative z-10 flex shrink-0 items-center gap-2.5"
           aria-label="Guestay home"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -69,7 +97,7 @@ export function Nav() {
         </Link>
 
         <nav
-          className="hidden items-center gap-9 md:flex"
+          className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-9 md:flex"
           aria-label="Primary"
         >
           {links.map((link) => {
@@ -96,23 +124,25 @@ export function Nav() {
           })}
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="relative z-10 hidden items-center gap-3 md:flex">
           <a
-            href={`tel:${siteContact.phone}`}
-            className="text-sm text-ink-muted transition-colors hover:text-olive"
+            href={PHONE_HREF}
+            className="text-sm tracking-[0.01em] text-ink-muted transition-colors hover:text-olive"
           >
-            {siteContact.phoneDisplay}
+            {PHONE_DISPLAY}
           </a>
-          <ProfileMenu />
           <Link
             href="/rooms"
             className="inline-flex h-10 items-center gap-2 rounded-full bg-olive px-5 text-sm font-medium text-cream-50 shadow-soft transition-all duration-200 ease-brand hover:scale-[1.02] hover:bg-olive-700 hover:shadow-lift active:scale-[0.98]"
           >
-            Book a room
+            Book a Room
           </Link>
+          <MyBookingsLink />
+          <ProfileMenu />
         </div>
 
-        <div className="flex items-center gap-2 md:hidden">
+        <div className="relative z-10 flex items-center gap-2 md:hidden">
+          <MyBookingsLink />
           <ProfileMenu />
           <button
             type="button"
@@ -147,11 +177,17 @@ export function Nav() {
                 </Link>
               ))}
               <a
-                href={`tel:${siteContact.phone}`}
+                href={PHONE_HREF}
+                className="rounded-soft px-1 py-3 text-lg text-ink-muted transition-colors hover:text-olive"
+              >
+                {PHONE_DISPLAY}
+              </a>
+              <Link
+                href="/rooms"
                 className="mt-3 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-olive text-sm font-medium text-cream-50"
               >
-                Call {siteContact.phoneDisplay}
-              </a>
+                Book a Room
+              </Link>
             </div>
           </motion.div>
         )}
