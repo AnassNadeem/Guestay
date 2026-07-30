@@ -3,15 +3,40 @@
 import { createBrowserSupabase, hasSupabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { User } from "lucide-react";
+import {
+  CalendarDays,
+  CreditCard,
+  LogIn,
+  LogOut,
+  Settings,
+  User,
+  UserPlus,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+const itemClass =
+  "flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-cream-100";
+const iconClass = "h-4 w-4 shrink-0 text-ink-muted";
+
 type SessionUser = {
   email?: string;
-  fullName?: string;
-  avatarUrl?: string | null;
+  displayName?: string;
 };
+
+function initialsFrom(user: SessionUser | null): string | null {
+  if (!user) return null;
+  const name = user.displayName?.trim();
+  if (name) {
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase();
+    }
+    return name[0]!.toUpperCase();
+  }
+  return user.email?.[0]?.toUpperCase() || null;
+}
 
 export function ProfileMenu() {
   const [open, setOpen] = useState(false);
@@ -22,27 +47,27 @@ export function ProfileMenu() {
     if (!hasSupabase()) return;
     const sb = createBrowserSupabase();
     if (!sb) return;
+
+    function fromUser(u: {
+      email?: string;
+      user_metadata?: Record<string, unknown>;
+    }): SessionUser {
+      return {
+        email: u.email,
+        displayName:
+          (u.user_metadata?.display_name as string) ||
+          (u.user_metadata?.full_name as string) ||
+          undefined,
+      };
+    }
+
     sb.auth.getSession().then(({ data }) => {
       const u = data.session?.user;
-      if (u) {
-        setUser({
-          email: u.email,
-          fullName: (u.user_metadata?.full_name as string) || undefined,
-          avatarUrl: (u.user_metadata?.avatar_url as string) || null,
-        });
-      }
+      if (u) setUser(fromUser(u));
     });
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
       const u = session?.user;
-      setUser(
-        u
-          ? {
-              email: u.email,
-              fullName: (u.user_metadata?.full_name as string) || undefined,
-              avatarUrl: (u.user_metadata?.avatar_url as string) || null,
-            }
-          : null,
-      );
+      setUser(u ? fromUser(u) : null);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -62,10 +87,7 @@ export function ProfileMenu() {
     setOpen(false);
   }
 
-  const initial =
-    user?.fullName?.[0]?.toUpperCase() ||
-    user?.email?.[0]?.toUpperCase() ||
-    null;
+  const initial = initialsFrom(user);
 
   return (
     <div className="relative" ref={ref}>
@@ -78,14 +100,7 @@ export function ProfileMenu() {
           "inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-olive/20 bg-white text-olive transition-all hover:scale-[1.02] hover:bg-cream-50 active:scale-[0.98]",
         )}
       >
-        {user?.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={user.avatarUrl}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : initial ? (
+        {initial ? (
           <span className="text-sm font-medium">{initial}</span>
         ) : (
           <User className="h-4 w-4" strokeWidth={1.75} />
@@ -108,37 +123,42 @@ export function ProfileMenu() {
                 </p>
                 <Link
                   href="/account"
-                  className="block px-4 py-2.5 text-sm text-ink hover:bg-cream-100"
+                  className={itemClass}
                   onClick={() => setOpen(false)}
                 >
+                  <CalendarDays className={iconClass} strokeWidth={1.75} />
                   My Bookings
                 </Link>
                 <Link
                   href="/account?tab=payments"
-                  className="block px-4 py-2.5 text-sm text-ink hover:bg-cream-100"
+                  className={itemClass}
                   onClick={() => setOpen(false)}
                 >
+                  <CreditCard className={iconClass} strokeWidth={1.75} />
                   Payments
                 </Link>
                 <Link
                   href="/account?tab=refunds"
-                  className="block px-4 py-2.5 text-sm text-ink hover:bg-cream-100"
+                  className={itemClass}
                   onClick={() => setOpen(false)}
                 >
+                  <Wallet className={iconClass} strokeWidth={1.75} />
                   Request Refund
                 </Link>
                 <Link
                   href="/account?tab=settings"
-                  className="block px-4 py-2.5 text-sm text-ink hover:bg-cream-100"
+                  className={itemClass}
                   onClick={() => setOpen(false)}
                 >
+                  <Settings className={iconClass} strokeWidth={1.75} />
                   Account Settings
                 </Link>
                 <button
                   type="button"
                   onClick={signOut}
-                  className="w-full px-4 py-2.5 text-left text-sm text-ink hover:bg-cream-100"
+                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-destructive hover:bg-cream-100"
                 >
+                  <LogOut className="h-4 w-4 shrink-0" strokeWidth={1.75} />
                   Sign Out
                 </button>
               </div>
@@ -146,16 +166,18 @@ export function ProfileMenu() {
               <div className="py-2">
                 <Link
                   href="/login"
-                  className="block px-4 py-2.5 text-sm text-ink hover:bg-cream-100"
+                  className={itemClass}
                   onClick={() => setOpen(false)}
                 >
+                  <LogIn className={iconClass} strokeWidth={1.75} />
                   Sign In
                 </Link>
                 <Link
                   href="/login?mode=signup"
-                  className="block px-4 py-2.5 text-sm text-ink hover:bg-cream-100"
+                  className={itemClass}
                   onClick={() => setOpen(false)}
                 >
+                  <UserPlus className={iconClass} strokeWidth={1.75} />
                   Create Account
                 </Link>
               </div>
