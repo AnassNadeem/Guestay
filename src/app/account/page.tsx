@@ -1,5 +1,6 @@
 "use client";
 
+import { AccountSettings } from "@/components/account/AccountSettings";
 import { Modal } from "@/components/ui/Modal";
 import { createBrowserSupabase, hasSupabase } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
@@ -39,8 +40,6 @@ function AccountInner() {
   const [refundBooking, setRefundBooking] = useState<BookingRow | null>(null);
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,9 +50,6 @@ function AccountInner() {
         const { data } = await sb.auth.getUser();
         userEmail = data.user?.email ?? null;
         setEmail(userEmail);
-        setFullName(
-          (data.user?.user_metadata?.full_name as string) || "",
-        );
       }
       const res = await fetch("/api/account/bookings");
       const data = await res.json();
@@ -114,19 +110,6 @@ function AccountInner() {
     setReason("");
     setNotes("");
     setMessage("Refund request submitted — Pending Review");
-  }
-
-  async function saveSettings(e: React.FormEvent) {
-    e.preventDefault();
-    if (!hasSupabase()) {
-      setMessage("Settings saved locally (Supabase not configured).");
-      return;
-    }
-    const sb = createBrowserSupabase();
-    await sb.auth.updateUser({
-      data: { full_name: fullName, phone },
-    });
-    setMessage("Account updated.");
   }
 
   return (
@@ -280,36 +263,7 @@ function AccountInner() {
           </div>
         )}
 
-        {tab === "settings" && (
-          <form onSubmit={saveSettings} className="mt-8 max-w-md space-y-3">
-            <label className="block text-sm">
-              <span className="text-ink-muted">Full name</span>
-              <input
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="mt-1 h-11 w-full rounded-soft border border-olive/15 bg-white px-3"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="text-ink-muted">Phone</span>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="mt-1 h-11 w-full rounded-soft border border-olive/15 bg-white px-3"
-              />
-            </label>
-            <p className="text-xs text-ink-soft">
-              Avatar upload uses the same profile photo flow as admin (Supabase
-              Storage) once credentials are connected.
-            </p>
-            <button
-              type="submit"
-              className="inline-flex h-11 items-center rounded-soft bg-olive px-6 text-sm font-medium text-cream-50"
-            >
-              Save settings
-            </button>
-          </form>
-        )}
+        {tab === "settings" && <AccountSettings />}
       </div>
 
       <Modal
