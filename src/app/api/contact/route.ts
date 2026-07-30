@@ -1,3 +1,7 @@
+import {
+  isSmtpConfigured,
+  queueContactEnquiryEmail,
+} from "@/lib/mail/contact";
 import { NextResponse } from "next/server";
 
 type ContactPayload = {
@@ -8,11 +12,11 @@ type ContactPayload = {
   message?: string;
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /**
- * Phase 1 contact stub.
- * - Always validates and returns success for local/dev.
- * - If CONTACT_WEBHOOK_URL (or NEXT_PUBLIC_CONTACT_WEBHOOK_URL) is set,
- *   forwards the payload so n8n / a Cloudflare Worker can email or log leads.
+ * Contact Us enquiries → hello@guestay.pk via Zoho SMTP.
+ * Validates quickly, then queues the email so the guest isn't waiting on SMTP.
  */
 export async function POST(request: Request) {
   let body: ContactPayload;
@@ -26,10 +30,30 @@ export async function POST(request: Request) {
   const name = body.name?.trim() ?? "";
   const email = body.email?.trim() ?? "";
   const message = body.message?.trim() ?? "";
+  const phone = body.phone?.trim() ?? "";
+  const roomType = body.roomType?.trim() ?? "";
 
-  if (!name || !email || !message) {
+  if (!name) {
     return NextResponse.json(
-      { error: "Name, email, and message are required." },
+      { error: "Please enter your name." },
+      { status: 400 },
+    );
+  }
+  if (!email) {
+    return NextResponse.json(
+      { error: "Please enter your email." },
+      { status: 400 },
+    );
+  }
+  if (!EMAIL_RE.test(email)) {
+    return NextResponse.json(
+      { error: "Please enter a valid email address." },
+      { status: 400 },
+    );
+  }
+  if (!message) {
+    return NextResponse.json(
+      { error: "Please enter a message." },
       { status: 400 },
     );
   }
@@ -37,11 +61,17 @@ export async function POST(request: Request) {
   const payload = {
     name,
     email,
-    phone: body.phone?.trim() ?? "",
-    roomType: body.roomType?.trim() ?? "",
+    phone,
+    roomType,
     message,
     receivedAt: new Date().toISOString(),
   };
+
+  if (isSmtpConfigured()) {
+    // Don't block the response on Zoho TLS/login — send in the background
+    queueContactEnquiryEmail(payload);
+    return NextResponse.json({ ok: true });
+  }
 
   const webhook =
     process.env.CONTACT_WEBHOOK_URL ||
@@ -52,22 +82,39 @@ export async function POST(request: Request) {
       const res = await fetch(webhook, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          source: "contact-form",
+          subject: `[Contact form] Enquiry from ${name}`,
+        }),
       });
       if (!res.ok) {
         return NextResponse.json(
-          { error: "Could not deliver your message. Please call us instead." },
+          {
+            error: "Could not deliver your message. Please call us instead.",
+          },
           { status: 502 },
         );
       }
     } catch {
       return NextResponse.json(
-        { error: "Could not deliver your message. Please call us instead." },
+        {
+          error: "Could not deliver your message. Please call us instead.",
+        },
         { status: 502 },
       );
     }
+  } else if (process.env.NODE_ENV === "production") {
+    console.error("[contact] No ZOHO SMTP or CONTACT_WEBHOOK_URL configured");
+    return NextResponse.json(
+      {
+        error:
+          "Messaging is temporarily unavailable. Please call or email us directly.",
+      },
+      { status: 503 },
+    );
   } else {
-    console.info("[contact enquiry]", payload);
+    console.info("[contact enquiry — not emailed, SMTP unset]", payload);
   }
 
   return NextResponse.json({ ok: true });
