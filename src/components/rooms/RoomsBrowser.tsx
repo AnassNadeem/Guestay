@@ -143,7 +143,7 @@ function RoomResultCard({
         })
       : null;
 
-  function addToBooking() {
+  async function addToBooking() {
     const ci = checkIn ?? defaultCheckIn();
     const co = checkOut ?? defaultCheckOut(ci);
     const q = quoteStay({
@@ -154,7 +154,7 @@ function RoomResultCard({
       guestCount: guests,
       isDirect: true,
     });
-    addItem({
+    await addItem({
       roomId: room.id,
       roomSlug: room.slug,
       roomName: room.name,
@@ -172,7 +172,8 @@ function RoomResultCard({
     toast("Added to your booking");
   }
 
-  const bookNowHref = (() => {
+  async function bookNow() {
+    await addToBooking();
     const ci = checkIn ?? defaultCheckIn();
     const co = checkOut ?? defaultCheckOut(ci);
     const params = new URLSearchParams({
@@ -182,9 +183,10 @@ function RoomResultCard({
       checkOut: co,
       guests: String(guests),
       immediate: "1",
+      cart: "1",
     });
-    return `/checkout?${params.toString()}`;
-  })();
+    window.location.href = `/checkout?${params.toString()}`;
+  }
 
   return (
     <motion.article
@@ -233,14 +235,15 @@ function RoomResultCard({
             onClick={addToBooking}
             className="inline-flex h-10 flex-1 items-center justify-center rounded-soft border border-olive/20 px-3 text-sm font-medium text-olive transition-all hover:scale-[1.02] hover:bg-white active:scale-[0.98]"
           >
-            Add to Booking
+            Add
           </button>
-          <Link
-            href={bookNowHref}
+          <button
+            type="button"
+            onClick={bookNow}
             className="inline-flex h-10 flex-1 items-center justify-center rounded-soft bg-olive px-3 text-sm font-medium text-cream-50 transition-all hover:scale-[1.02] hover:bg-olive-700 active:scale-[0.98]"
           >
             Book Now
-          </Link>
+          </button>
         </div>
       </div>
     </motion.article>
@@ -463,6 +466,56 @@ export function RoomsBrowser({ rooms }: { rooms: Room[] }) {
       </aside>
 
       <div>
+        {/* Active filter chips */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {availability !== "all" && (
+            <button
+              type="button"
+              onClick={() => setAvailability("all")}
+              className="inline-flex items-center gap-1.5 rounded-full border border-olive/15 bg-white px-3 py-1 text-xs text-olive"
+            >
+              Availability: {availability}
+              <span aria-hidden>×</span>
+            </button>
+          )}
+          {sort !== "price_asc" && (
+            <button
+              type="button"
+              onClick={() => setSort("price_asc")}
+              className="inline-flex items-center gap-1.5 rounded-full border border-olive/15 bg-white px-3 py-1 text-xs text-olive"
+            >
+              Sort
+              <span aria-hidden>×</span>
+            </button>
+          )}
+          {(priceRange[0] > priceBounds.min ||
+            priceRange[1] < priceBounds.max) && (
+            <button
+              type="button"
+              onClick={() =>
+                setPriceRange([priceBounds.min, priceBounds.max])
+              }
+              className="inline-flex items-center gap-1.5 rounded-full border border-olive/15 bg-white px-3 py-1 text-xs text-olive"
+            >
+              Price range
+              <span aria-hidden>×</span>
+            </button>
+          )}
+          {(checkIn || checkOut) && (
+            <button
+              type="button"
+              onClick={() => {
+                setCheckIn(null);
+                setCheckOut(null);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-olive/15 bg-white px-3 py-1 text-xs text-olive"
+            >
+              Dates
+              <span aria-hidden>×</span>
+            </button>
+          )}
+        </div>
+
         <div className="mb-5 flex items-center justify-between gap-3">
           <p className="text-sm text-ink-muted" aria-live="polite">
             <AnimatePresence mode="wait">

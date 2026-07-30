@@ -6,7 +6,6 @@ import { quoteStay } from "@/lib/pricing";
 import { formatCurrency, whatsappHref } from "@/lib/utils";
 import type { BookingMode, Room, SiteContact } from "@/types";
 import { MessageCircle, Phone } from "lucide-react";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 
 function todayISO() {
@@ -59,13 +58,9 @@ export function BookingQuoteCard({
 
   const guestCount = mode === "exclusive" ? room.capacity : guests;
 
-  const checkoutHref =
-    quote &&
-    `/checkout?room=${room.slug}&mode=${mode}&checkIn=${checkIn}&checkOut=${checkOut}&guests=${guestCount}&immediate=1`;
-
-  function addToBooking() {
+  async function addToBooking() {
     if (!quote) return;
-    addItem({
+    await addItem({
       roomId: room.id,
       roomSlug: room.slug,
       roomName: room.name,
@@ -81,6 +76,12 @@ export function BookingQuoteCard({
       effectivePerNightPkr: quote.effectivePerNightPkr,
     });
     toast("Added to your booking");
+  }
+
+  async function bookNow() {
+    if (!quote) return;
+    await addToBooking();
+    window.location.href = `/checkout?room=${room.slug}&mode=${mode}&checkIn=${checkIn}&checkOut=${checkOut}&guests=${guestCount}&immediate=1&cart=1`;
   }
 
   const waMessage = `Hi Guestay, I'm interested in ${room.name} from ${checkIn} to ${checkOut}.`;
@@ -198,24 +199,16 @@ export function BookingQuoteCard({
           onClick={addToBooking}
           className="inline-flex h-11 w-full items-center justify-center rounded-soft border border-olive/20 bg-white text-sm font-medium text-olive transition-all hover:scale-[1.02] hover:bg-cream-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
         >
-          Add to Booking
+          Add
         </button>
-        {checkoutHref ? (
-          <Link
-            href={checkoutHref}
-            className="inline-flex h-11 w-full items-center justify-center rounded-soft bg-olive text-sm font-medium text-cream-50 transition-all hover:scale-[1.02] hover:bg-olive-700 active:scale-[0.98]"
-          >
-            Book Now
-          </Link>
-        ) : (
-          <button
-            type="button"
-            disabled
-            className="inline-flex h-11 w-full cursor-not-allowed items-center justify-center rounded-soft bg-olive/40 text-sm font-medium text-cream-50"
-          >
-            Select valid dates
-          </button>
-        )}
+        <button
+          type="button"
+          disabled={!quote}
+          onClick={bookNow}
+          className="inline-flex h-11 w-full items-center justify-center rounded-soft bg-olive text-sm font-medium text-cream-50 transition-all hover:scale-[1.02] hover:bg-olive-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Book Now
+        </button>
         <a
           href={`tel:${contact.phone}`}
           className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-soft border border-olive/20 bg-white text-sm font-medium text-olive transition-colors hover:bg-cream-100"
