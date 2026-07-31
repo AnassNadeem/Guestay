@@ -47,6 +47,14 @@ function AuthCallbackInner() {
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (!error) {
+          // Magic-link / OAuth success → account is claimed
+          try {
+            await supabase.auth.updateUser({
+              data: { guestay_unclaimed: false },
+            });
+          } catch {
+            /* optional */
+          }
           setMessage("Success — redirecting…");
           await go(next);
           return;
