@@ -1,7 +1,11 @@
 import {
+  finalizeSuccessfulBooking,
+  getOrderBookings,
+} from "@/lib/bookings/confirm";
+import {
   getLocalBookingByTracker,
-  updateLocalBooking,
   listLocalBookings,
+  updateLocalBooking,
 } from "@/lib/bookings/local-store";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { NextResponse } from "next/server";
@@ -19,7 +23,6 @@ export async function POST(req: Request) {
       req.headers.get("x-sfpy-signature") ||
       req.headers.get("x-safepay-signature") ||
       "";
-    // Soft verify: if secret configured but signature missing, reject
     if (!sig) {
       return NextResponse.json({ error: "Missing signature" }, { status: 401 });
     }
@@ -48,33 +51,63 @@ export async function POST(req: Request) {
   const gateway = getPaymentGateway();
   const verified = await gateway.verifyTracker(tracker);
   if (!verified.success) {
-    return NextResponse.json({ received: true, updated: false, verified: false });
+    return NextResponse.json({
+      received: true,
+      updated: false,
+      verified: false,
+    });
   }
 
   let booking = getLocalBookingByTracker(tracker);
   if (!booking) {
-    // Fallback: match by order id in metadata if present
     const orderId =
       (payload.order_id as string) ||
       ((payload.metadata as Record<string, string> | undefined)?.order_id);
     if (orderId) {
       booking =
-        listLocalBookings().find((b) => b.reference === orderId) || null;
+        listLocalBookings().find(
+          (b) =>
+            b.orderId === orderId ||
+            b.id === orderId ||
+            b.reference === orderId ||
+            b.notes?.includes(`order:${orderId}`),
+        ) || null;
     }
   }
 
-  if (booking) {
-    const half = booking.paymentKind === "half";
-    updateLocalBooking(booking.id, {
-      status: half ? "partially_paid" : "paid",
-      amountPaidPkr: half
-        ? Math.ceil(booking.subtotalPkr / 2)
-        : booking.subtotalPkr,
-      amountDuePkr: half ? Math.floor(booking.subtotalPkr / 2) : 0,
-      holdExpiresAt: null,
-      gatewayTracker: tracker,
-    });
+  if (!booking) {
+    return NextResponse.json({ received: true, updated: false });
   }
 
-  return NextResponse.json({ received: true, updated: Boolean(booking) });
+  const siblings = getOrderBookings(booking);
+  const half = booking.paymentKind === "half";
+  const status = half ? "partially_paid" : "paid";
+  const amounts = siblings.map((b) => {
+    const amountPaidPkr = half
+      ? Math.ceil(b.subtotalPkr / 2)
+      : b.subtotalPkr;
+    return {
+      id: b.id,
+      amountPaidPkr,
+      amountDuePkr: Math.max(0, b.subtotalPkr - amountPaidPkr),
+    };
+  });
+
+  for (const b of siblings) {
+    updateLocalBooking(b.id, { gatewayTracker: tracker });
+  }
+
+  const finalized = await finalizeSuccessfulBooking({
+    bookingId: booking.id,
+    status,
+    amounts,
+    sessionUserId: booking.pendingSessionUserId || null,
+  });
+
+  return NextResponse.json({
+    received: true,
+    updated: true,
+    reference: finalized?.reference,
+    alreadyFinalized: finalized?.alreadyFinalized ?? false,
+  });
 }
