@@ -11,7 +11,6 @@ import {
   Settings,
   User,
   UserPlus,
-  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -136,14 +135,6 @@ export function ProfileMenu() {
                 >
                   <CreditCard className={iconClass} strokeWidth={1.75} />
                   Payments
-                </Link>
-                <Link
-                  href="/account?tab=refunds"
-                  className={itemClass}
-                  onClick={() => setOpen(false)}
-                >
-                  <Wallet className={iconClass} strokeWidth={1.75} />
-                  Request Refund
                 </Link>
                 <Link
                   href="/account?tab=settings"
