@@ -1,11 +1,20 @@
 import { quoteStay } from "@/lib/pricing";
 import { getRoomBySlug } from "@/lib/mock";
+import {
+  generateBookingReference,
+  generateHoldReference,
+} from "@/lib/bookings/reference";
+import type { AccountLinkScenario } from "@/lib/mail/booking";
 import type { BookingMode, BookingStatus } from "@/types";
 import { randomBytes } from "crypto";
 
 export type LocalBooking = {
   id: string;
+  /** HOLD-… until payment/confirm; then guest-facing GST-XXXXXX */
   reference: string;
+  /** Shared guest-facing reference for multi-room orders */
+  orderReference?: string;
+  orderId?: string;
   roomSlug: string;
   roomName: string;
   guestName: string;
@@ -30,6 +39,11 @@ export type LocalBooking = {
   isGroupNoAdvance: boolean;
   paymentKind?: "full" | "half" | "none";
   gatewayTracker?: string;
+  guestId?: string;
+  /** Stashed at reserve when logged in — used after Safepay return */
+  pendingSessionUserId?: string;
+  accountLinkScenario?: AccountLinkScenario;
+  confirmationNotifiedAt?: string;
   createdAt: string;
   notes?: string;
 };
@@ -44,11 +58,6 @@ function store() {
   return g.__guestayBookings;
 }
 
-function nextReference() {
-  const n = 1000 + store().size + Math.floor(Math.random() * 80);
-  return `GST-${n}`;
-}
-
 export function listLocalBookings() {
   return Array.from(store().values()).sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
@@ -57,7 +66,13 @@ export function listLocalBookings() {
 
 export function getLocalBooking(idOrRef: string) {
   for (const b of Array.from(store().values())) {
-    if (b.id === idOrRef || b.reference === idOrRef) return b;
+    if (
+      b.id === idOrRef ||
+      b.reference === idOrRef ||
+      b.orderReference === idOrRef
+    ) {
+      return b;
+    }
   }
   return null;
 }
@@ -95,15 +110,17 @@ export async function createLocalHold(input: {
     process.env.BOOKING_HOLD_MINUTES ||
       (process.env.BOOKING_HOLD_HOURS
         ? Number(process.env.BOOKING_HOLD_HOURS) * 60
-        : 15),
+        : 10),
   );
   const holdExpiresAt = new Date(
     Date.now() + holdMinutes * 60 * 1000,
   ).toISOString();
 
+  // Holds stay pending_hold with a HOLD- reference. Group / no-advance
+  // confirmation (and GST reference) happens in finalizeSuccessfulBooking.
   const booking: LocalBooking = {
     id: randomBytes(8).toString("hex"),
-    reference: nextReference(),
+    reference: generateHoldReference(),
     roomSlug: room.slug,
     roomName: room.name,
     guestName: input.guestName,
@@ -115,16 +132,16 @@ export async function createLocalHold(input: {
     checkIn: input.checkIn,
     checkOut: input.checkOut,
     nights: quote.nights,
-    status: quote.isGroupNoAdvance ? "confirmed_no_advance" : "pending_hold",
+    status: "pending_hold",
     source: "direct",
     tierApplied: quote.tier,
     ratePerNightPkr: quote.ratePerNightPkr,
     subtotalPkr: quote.staySubtotalPkr,
     depositDuePkr: quote.depositDuePkr,
     amountPaidPkr: 0,
-    amountDuePkr: quote.isGroupNoAdvance ? 0 : quote.staySubtotalPkr,
+    amountDuePkr: quote.staySubtotalPkr,
     totalPkr: quote.staySubtotalPkr + quote.depositDuePkr,
-    holdExpiresAt: quote.isGroupNoAdvance ? null : holdExpiresAt,
+    holdExpiresAt,
     isGroupNoAdvance: quote.isGroupNoAdvance,
     createdAt: new Date().toISOString(),
   };
@@ -163,7 +180,7 @@ export function expireLocalHolds(now = Date.now()) {
 export function extendLocalHold(idOrRef: string, minutes?: number) {
   const booking = getLocalBooking(idOrRef);
   if (!booking || booking.status !== "pending_hold") return null;
-  const mins = minutes ?? Number(process.env.BOOKING_HOLD_MINUTES || 15);
+  const mins = minutes ?? Number(process.env.BOOKING_HOLD_MINUTES || 10);
   const base = Math.max(
     Date.now(),
     booking.holdExpiresAt
@@ -201,29 +218,26 @@ export async function createLocalMultiHold(input: {
     results.push(r);
   }
   const orderId = randomBytes(8).toString("hex");
-  const reference = `GST-O-${1000 + store().size}`;
+  // Temporary order key for gateway metadata — final GST ref minted on confirm
+  const holdOrderKey = generateHoldReference();
   const holdExpiresAt = results[0]?.booking.holdExpiresAt ?? null;
   const totalGuests = input.lines.reduce((s, l) => s + l.guests, 0);
-  const isGroup = totalGuests >= Number(process.env.GROUP_NO_ADVANCE_MIN_GUESTS || 10);
+  const isGroup =
+    totalGuests >= Number(process.env.GROUP_NO_ADVANCE_MIN_GUESTS || 10);
 
   for (const r of results) {
     updateLocalBooking(r.booking.id, {
-      // stash order linkage in notes for local mode
+      orderId,
       notes: `order:${orderId}`,
-      ...(isGroup
-        ? {
-            status: "confirmed_no_advance" as const,
-            holdExpiresAt: null,
-            isGroupNoAdvance: true,
-          }
-        : {}),
+      isGroupNoAdvance: isGroup || r.booking.isGroupNoAdvance,
     });
   }
 
   return {
     orderId,
-    reference,
-    holdExpiresAt: isGroup ? null : holdExpiresAt,
+    /** Gateway order id until finalize mints GST-… */
+    reference: holdOrderKey,
+    holdExpiresAt,
     isGroupNoAdvance: isGroup,
     bookings: results.map((r) => getLocalBooking(r.booking.id)!),
     quotes: results.map((r) => r.quote),
@@ -255,9 +269,12 @@ export function createWalkInBooking(input: {
         86400000,
     ),
   );
+  // Walk-in is paid immediately — mint the guest-facing reference now
+  const reference = generateBookingReference();
   const booking: LocalBooking = {
     id: randomBytes(8).toString("hex"),
-    reference: nextReference(),
+    reference,
+    orderReference: reference,
     roomSlug: input.roomSlug,
     roomName: input.roomName,
     guestName: input.guestName,
