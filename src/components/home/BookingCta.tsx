@@ -17,7 +17,7 @@ const steps = [
   {
     step: "03",
     title: "Get confirmed",
-    body: "Email confirmation, check-in instructions, and a magic link for your guest account.",
+    body: "Email confirmation, check-in instructions, and a link to set up your guest account.",
   },
 ];
 
