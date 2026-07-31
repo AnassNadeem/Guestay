@@ -4,7 +4,7 @@ import { useCartOptional } from "@/components/booking/CartProvider";
 import { ProfileMenu } from "@/components/auth/ProfileMenu";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { Briefcase, Menu, X } from "lucide-react";
+import { Heart, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -18,22 +18,24 @@ const links = [
 const PHONE_DISPLAY = "03073050505";
 const PHONE_HREF = "tel:03073050505";
 
-function MyBookingsLink({ className }: { className?: string }) {
+function SavedLink({ className }: { className?: string }) {
   const cart = useCartOptional();
   const count = cart?.count ?? 0;
 
   return (
     <Link
       href="/booking-summary"
-      aria-label={
-        count > 0 ? `My Bookings, ${count} rooms` : "My Bookings"
-      }
+      aria-label={count > 0 ? `Saved, ${count} rooms` : "Saved"}
       className={cn(
         "relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-olive/20 bg-white text-olive transition-all hover:scale-[1.02] hover:bg-cream-50 active:scale-[0.98]",
         className,
       )}
     >
-      <Briefcase className="h-4 w-4" strokeWidth={1.75} />
+      <Heart
+        className="h-4 w-4"
+        strokeWidth={1.75}
+        fill={count > 0 ? "currentColor" : "none"}
+      />
       {count > 0 && (
         <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-olive px-1 text-[0.625rem] font-medium leading-none text-cream-50">
           {count > 9 ? "9+" : count}
@@ -137,12 +139,12 @@ export function Nav() {
           >
             Book a Room
           </Link>
-          <MyBookingsLink />
+          <SavedLink />
           <ProfileMenu />
         </div>
 
         <div className="relative z-10 flex items-center gap-2 md:hidden">
-          <MyBookingsLink />
+          <SavedLink />
           <ProfileMenu />
           <button
             type="button"

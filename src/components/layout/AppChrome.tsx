@@ -1,6 +1,5 @@
 "use client";
 
-import { BookingBadge } from "@/components/booking/BookingBadge";
 import { CartProvider } from "@/components/booking/CartProvider";
 import { PromoPopout } from "@/components/home/PromoPopout";
 import { Footer } from "@/components/layout/Footer";
@@ -23,7 +22,6 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
         <main className="min-h-screen">{children}</main>
         <Footer />
         <PromoPopout />
-        <BookingBadge />
       </CartProvider>
     </ToastProvider>
   );
