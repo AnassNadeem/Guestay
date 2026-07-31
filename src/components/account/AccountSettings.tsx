@@ -63,13 +63,25 @@ export function AccountSettings() {
       const user = auth.user;
       if (!user) return;
 
-      const { data: row } = await sb
-        .from("profiles")
-        .select(
-          "email, display_name, legal_name, full_name, phone, phone_verified_at, role",
-        )
-        .eq("id", user.id)
-        .maybeSingle();
+      // profiles + name_change_requests in parallel (were sequential before)
+      const [{ data: row }, { data: reqs }] = await Promise.all([
+        sb
+          .from("profiles")
+          .select(
+            "email, display_name, legal_name, full_name, phone, phone_verified_at, role",
+          )
+          .eq("id", user.id)
+          .maybeSingle(),
+        sb
+          .from("name_change_requests")
+          .select(
+            "id, requested_legal_name, reason, status, reviewer_note, created_at",
+          )
+          .eq("user_id", user.id)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(1),
+      ]);
 
       const legal =
         row?.legal_name ||
@@ -95,16 +107,6 @@ export function AccountSettings() {
       setDisplayName(display);
       setPhone(phoneVal);
       setOwnerLegalName(legal);
-
-      const { data: reqs } = await sb
-        .from("name_change_requests")
-        .select(
-          "id, requested_legal_name, reason, status, reviewer_note, created_at",
-        )
-        .eq("user_id", user.id)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(1);
       setPendingRequest((reqs?.[0] as NameChangeRequest) || null);
     }
     void load();
@@ -236,7 +238,15 @@ export function AccountSettings() {
   }
 
   if (!profile) {
-    return <p className="mt-8 text-sm text-ink-muted">Loading settings…</p>;
+    return (
+      <div className="mt-8 max-w-md space-y-4" aria-busy aria-label="Loading settings">
+        <div className="h-11 animate-pulse rounded-soft bg-olive/10" />
+        <div className="h-11 animate-pulse rounded-soft bg-olive/10" />
+        <div className="h-11 animate-pulse rounded-soft bg-olive/10" />
+        <div className="h-11 w-24 animate-pulse rounded-soft bg-olive/10" />
+        <div className="mt-6 h-16 animate-pulse rounded-soft bg-olive/10" />
+      </div>
+    );
   }
 
   const phoneStatus = getPhoneVerificationStatus(profile.phoneVerifiedAt);
