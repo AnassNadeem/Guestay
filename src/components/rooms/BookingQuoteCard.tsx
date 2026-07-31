@@ -5,7 +5,7 @@ import { useToast } from "@/components/ui/Toast";
 import { quoteStay } from "@/lib/pricing";
 import { formatCurrency, whatsappHref } from "@/lib/utils";
 import type { BookingMode, Room, SiteContact } from "@/types";
-import { MessageCircle, Phone } from "lucide-react";
+import { Heart, MessageCircle, Phone } from "lucide-react";
 import { useMemo, useState } from "react";
 
 function todayISO() {
@@ -25,7 +25,7 @@ export function BookingQuoteCard({
   room: Room;
   contact: SiteContact;
 }) {
-  const { addItem } = useCart();
+  const { addItem, isSaved } = useCart();
   const { toast } = useToast();
   const defaultMode: BookingMode = room.allowsExclusiveBooking
     ? "exclusive"
@@ -57,9 +57,14 @@ export function BookingQuoteCard({
   }, [room, mode, checkIn, checkOut, guests]);
 
   const guestCount = mode === "exclusive" ? room.capacity : guests;
+  const alreadySaved = isSaved(room.id, checkIn, checkOut);
 
-  async function addToBooking() {
+  async function saveRoom() {
     if (!quote) return;
+    if (alreadySaved) {
+      toast("Already in your Saved list");
+      return;
+    }
     await addItem({
       roomId: room.id,
       roomSlug: room.slug,
@@ -75,13 +80,20 @@ export function BookingQuoteCard({
       subtotalPkr: quote.staySubtotalPkr,
       effectivePerNightPkr: quote.effectivePerNightPkr,
     });
-    toast("Added to your booking");
+    toast("Saved — availability is checked at checkout");
   }
 
-  async function bookNow() {
+  function bookNow() {
     if (!quote) return;
-    await addToBooking();
-    window.location.href = `/checkout?room=${room.slug}&mode=${mode}&checkIn=${checkIn}&checkOut=${checkOut}&guests=${guestCount}&immediate=1&cart=1`;
+    // Checkout only this room — do not pull in other Saved rooms
+    const params = new URLSearchParams({
+      room: room.slug,
+      mode,
+      checkIn,
+      checkOut,
+      guests: String(guestCount),
+    });
+    window.location.href = `/checkout?${params.toString()}`;
   }
 
   const waMessage = `Hi Guestay, I'm interested in ${room.name} from ${checkIn} to ${checkOut}.`;
@@ -196,10 +208,15 @@ export function BookingQuoteCard({
         <button
           type="button"
           disabled={!quote}
-          onClick={addToBooking}
-          className="inline-flex h-11 w-full items-center justify-center rounded-soft border border-olive/20 bg-white text-sm font-medium text-olive transition-all hover:scale-[1.02] hover:bg-cream-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+          onClick={saveRoom}
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-soft border border-olive/20 bg-white text-sm font-medium text-olive transition-all hover:scale-[1.02] hover:bg-cream-100 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
         >
-          Add
+          <Heart
+            className="h-4 w-4"
+            strokeWidth={1.75}
+            fill={alreadySaved ? "currentColor" : "none"}
+          />
+          {alreadySaved ? "Saved" : "Save"}
         </button>
         <button
           type="button"

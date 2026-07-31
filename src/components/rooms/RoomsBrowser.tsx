@@ -8,7 +8,7 @@ import { quoteStay } from "@/lib/pricing";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { Room } from "@/types";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
-import { SlidersHorizontal, X } from "lucide-react";
+import { Heart, SlidersHorizontal, X } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -123,13 +123,16 @@ function RoomResultCard({
   guests: number;
   reveal: boolean;
 }) {
-  const { addItem } = useCart();
+  const { addItem, isSaved } = useCart();
   const { toast } = useToast();
   const reduced = useReducedMotion();
   const mode =
     room.allowsExclusiveBooking
       ? ("exclusive" as const)
       : ("shared" as const);
+  const ci = checkIn ?? defaultCheckIn();
+  const co = checkOut ?? defaultCheckOut(ci);
+  const alreadySaved = isSaved(room.id, ci, co);
 
   const quote =
     checkIn && checkOut
@@ -143,9 +146,11 @@ function RoomResultCard({
         })
       : null;
 
-  async function addToBooking() {
-    const ci = checkIn ?? defaultCheckIn();
-    const co = checkOut ?? defaultCheckOut(ci);
+  async function saveRoom() {
+    if (alreadySaved) {
+      toast("Already in your Saved list");
+      return;
+    }
     const q = quoteStay({
       room,
       mode,
@@ -169,21 +174,17 @@ function RoomResultCard({
       subtotalPkr: q.staySubtotalPkr,
       effectivePerNightPkr: q.effectivePerNightPkr,
     });
-    toast("Added to your booking");
+    toast("Saved — availability is checked at checkout");
   }
 
-  async function bookNow() {
-    await addToBooking();
-    const ci = checkIn ?? defaultCheckIn();
-    const co = checkOut ?? defaultCheckOut(ci);
+  function bookNow() {
+    // Checkout only this room — do not pull in other Saved rooms
     const params = new URLSearchParams({
       room: room.slug,
       mode,
       checkIn: ci,
       checkOut: co,
       guests: String(guests),
-      immediate: "1",
-      cart: "1",
     });
     window.location.href = `/checkout?${params.toString()}`;
   }
@@ -232,10 +233,15 @@ function RoomResultCard({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={addToBooking}
-            className="inline-flex h-10 flex-1 items-center justify-center rounded-soft border border-olive/20 px-3 text-sm font-medium text-olive transition-all hover:scale-[1.02] hover:bg-white active:scale-[0.98]"
+            onClick={saveRoom}
+            className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-soft border border-olive/20 px-3 text-sm font-medium text-olive transition-all hover:scale-[1.02] hover:bg-white active:scale-[0.98]"
           >
-            Add
+            <Heart
+              className="h-3.5 w-3.5"
+              strokeWidth={1.75}
+              fill={alreadySaved ? "currentColor" : "none"}
+            />
+            {alreadySaved ? "Saved" : "Save"}
           </button>
           <button
             type="button"
