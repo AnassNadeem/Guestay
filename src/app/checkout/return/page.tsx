@@ -1,4 +1,8 @@
-import { getLocalBookingByTracker, updateLocalBooking } from "@/lib/bookings/local-store";
+import {
+  finalizeSuccessfulBooking,
+  getOrderBookings,
+} from "@/lib/bookings/confirm";
+import { getLocalBookingByTracker } from "@/lib/bookings/local-store";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -25,18 +29,40 @@ export default async function CheckoutReturnPage({ searchParams }: Props) {
   const booking = getLocalBookingByTracker(tracker);
 
   if (result.success && booking) {
-    const kind = booking.paymentKind === "half" ? "half" : "full";
-    const paid =
-      kind === "half"
-        ? Math.ceil(booking.subtotalPkr * 0.5)
-        : booking.subtotalPkr;
-    updateLocalBooking(booking.id, {
-      status: kind === "half" ? "partially_paid" : "paid",
-      amountPaidPkr: paid,
-      amountDuePkr: Math.max(0, booking.subtotalPkr - paid),
-      holdExpiresAt: null,
+    const siblings = getOrderBookings(booking);
+    const half = booking.paymentKind === "half";
+    const status = half ? "partially_paid" : "paid";
+
+    const amounts = siblings.map((b) => {
+      const amountPaidPkr = half
+        ? Math.ceil(b.subtotalPkr / 2)
+        : b.subtotalPkr;
+      return {
+        id: b.id,
+        amountPaidPkr,
+        amountDuePkr: Math.max(0, b.subtotalPkr - amountPaidPkr),
+      };
     });
-    redirect(`/booking/${booking.reference}`);
+
+    // Attach tracker to every line so webhook/return can find the order
+    const { updateLocalBooking } = await import("@/lib/bookings/local-store");
+    for (const b of siblings) {
+      updateLocalBooking(b.id, { gatewayTracker: tracker });
+    }
+
+    const finalized = await finalizeSuccessfulBooking({
+      bookingId: booking.id,
+      status,
+      amounts,
+      // Prefer session stashed at reserve (survives Safepay redirect)
+      sessionUserId: booking.pendingSessionUserId || null,
+    });
+
+    const ref = finalized?.reference || booking.reference;
+    const scenario = finalized?.scenario || "new_or_unclaimed";
+    redirect(
+      `/booking-confirmed?ref=${encodeURIComponent(ref)}&scenario=${encodeURIComponent(scenario)}`,
+    );
   }
 
   return (
