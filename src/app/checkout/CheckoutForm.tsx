@@ -21,52 +21,60 @@ type QuotePayload = {
 
 type PayMethod = "jazzcash" | "easypaisa" | "card" | "raast";
 
-const METHODS: { id: PayMethod; label: string; hint: string }[] = [
-  { id: "jazzcash", label: "JazzCash", hint: "Mobile wallet" },
-  { id: "easypaisa", label: "Easypaisa", hint: "Mobile wallet" },
-  {
-    id: "card",
-    label: "Card",
-    hint: "Visa / Mastercard / UnionPay / PayPak",
-  },
-  { id: "raast", label: "Raast", hint: "Bank transfer" },
-];
-
 const GRACE_SECONDS = Number(
-  process.env.NEXT_PUBLIC_HOLD_GRACE_SECONDS || 90,
+  process.env.NEXT_PUBLIC_HOLD_GRACE_SECONDS || 60,
 );
+const HOLD_MINUTES = Number(process.env.NEXT_PUBLIC_HOLD_MINUTES || 10);
 
 export function CheckoutForm() {
   const params = useSearchParams();
   const router = useRouter();
-  const { items: cartItems, clear: clearCart, soonestHoldExpiresAt } = useCart();
-  const { toast } = useToast();
-
   const fromCart = params.get("cart") === "1";
+  const selectedIds = useMemo(() => {
+    const raw = params.get("ids");
+    if (!raw) return null;
+    const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    return ids.length > 0 ? ids : null;
+  }, [params]);
   const room = params.get("room") || "";
   const mode = (params.get("mode") || "exclusive") as BookingMode;
   const checkIn = params.get("checkIn") || "";
   const checkOut = params.get("checkOut") || "";
   const guests = Number(params.get("guests") || 1);
 
+  const {
+    items: cartItems,
+    clear: clearCart,
+    removeItem,
+    updateItem,
+    clearHoldMeta,
+    hydrated: cartHydrated,
+  } = useCart();
+  const { toast } = useToast();
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [payOption, setPayOption] = useState<"full" | "half" | "none">("full");
-  const [method, setMethod] = useState<PayMethod>("card");
-  const [walletPhone, setWalletPhone] = useState("");
+  const [method] = useState<PayMethod>("card");
   const [tos, setTos] = useState(false);
   const [shakeTos, setShakeTos] = useState(false);
   const [quote, setQuote] = useState<QuotePayload | null>(null);
   const [multiTotal, setMultiTotal] = useState<number | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [holdExpiresAt, setHoldExpiresAt] = useState<string | null>(null);
+  const [holdLeftSec, setHoldLeftSec] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [holdLoading, setHoldLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionModal, setSessionModal] = useState(false);
   const [graceLeft, setGraceLeft] = useState(GRACE_SECONDS);
   const [safepayToken, setSafepayToken] = useState<string | null>(null);
-  const holdCreated = useRef(false);
+  const [safepayStatus, setSafepayStatus] = useState<
+    "loading" | "ready" | "unavailable"
+  >("loading");
+  const holdStarted = useRef(false);
+  const graceActive = useRef(false);
   const graceTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function refreshSafepayToken() {
@@ -75,9 +83,15 @@ export function CheckoutForm() {
         cache: "no-store",
       });
       const data = await res.json();
-      if (data.tbt) setSafepayToken(data.tbt as string);
-      return (data.tbt as string) || null;
+      if (data.tbt) {
+        setSafepayToken(data.tbt as string);
+        setSafepayStatus("ready");
+        return data.tbt as string;
+      }
+      setSafepayStatus("unavailable");
+      return null;
     } catch {
+      setSafepayStatus("unavailable");
       return null;
     }
   }
@@ -86,19 +100,18 @@ export function CheckoutForm() {
     void refreshSafepayToken();
   }, []);
 
-  // Prefer holds already created on Add / Book Now
-  useEffect(() => {
-    if (soonestHoldExpiresAt) {
-      setHoldExpiresAt(soonestHoldExpiresAt);
-      const withId = cartItems.find((i) => i.bookingId);
-      if (withId?.bookingId) setBookingId(withId.bookingId);
-      holdCreated.current = true;
+  const checkoutItems = useMemo(() => {
+    if (!fromCart) return [];
+    if (selectedIds?.length) {
+      return cartItems.filter((i) => selectedIds.includes(i.id));
     }
-  }, [soonestHoldExpiresAt, cartItems]);
+    return cartItems;
+  }, [fromCart, cartItems, selectedIds]);
 
   const lines = useMemo(() => {
-    if (fromCart && cartItems.length > 0) {
-      return cartItems.map((i) => ({
+    if (checkoutItems.length > 0) {
+      return checkoutItems.map((i) => ({
+        cartItemId: i.id,
         roomSlug: i.roomSlug,
         mode: i.bookingMode,
         checkIn: i.checkIn,
@@ -108,10 +121,33 @@ export function CheckoutForm() {
         subtotalPkr: i.subtotalPkr,
         nights: i.nights,
         effectivePerNightPkr: i.effectivePerNightPkr,
+        bookingId: i.bookingId,
       }));
     }
     return null;
-  }, [fromCart, cartItems]);
+  }, [checkoutItems]);
+
+  function clearCheckoutItems() {
+    if (checkoutItems.length > 0) {
+      for (const item of checkoutItems) {
+        removeItem(item.id);
+      }
+      return;
+    }
+    // Single-room checkout: only drop the matching Saved item, keep the rest
+    if (room && checkIn && checkOut) {
+      const match = cartItems.find(
+        (i) =>
+          i.roomSlug === room &&
+          i.checkIn === checkIn &&
+          i.checkOut === checkOut &&
+          i.bookingMode === mode,
+      );
+      if (match) removeItem(match.id);
+      return;
+    }
+    clearCart();
+  }
 
   useEffect(() => {
     async function load() {
@@ -136,14 +172,176 @@ export function CheckoutForm() {
     load();
   }, [room, mode, checkIn, checkOut, guests, lines]);
 
-  // Create hold when guest lands on checkout (after guest fields filled, or on first interact)
-  // Plan: create hold the moment they land — we create on mount with placeholder then update,
-  // OR create when they submit. Plan says: "The moment a guest lands on /checkout ... create hold"
-  // We'll create a soft hold when quote is ready using a session create endpoint.
-  // For local flow, hold is created on reserve; we also start a client clock when holdExpiresAt set.
-  // To match plan more closely: create hold ASAP via a lightweight start-session call after identity.
+  // Create real inventory holds when landing on checkout (after cart hydrates)
+  useEffect(() => {
+    if (holdStarted.current) return;
+    if (!cartHydrated) return;
+
+    const snapshot = fromCart ? checkoutItems : [];
+    const canStart =
+      (fromCart && snapshot.length > 0) ||
+      (room && checkIn && checkOut);
+    if (!canStart) {
+      if (fromCart && cartHydrated && snapshot.length === 0) {
+        if (selectedIds?.length && cartItems.length > 0) {
+          setError(
+            "Those rooms are no longer in your Saved list. Go back and choose again.",
+          );
+          setHoldLoading(false);
+          return;
+        }
+        // Still waiting for cart hydrate / items
+        return;
+      }
+      setHoldLoading(false);
+      return;
+    }
+
+    holdStarted.current = true;
+    let cancelled = false;
+
+    async function startHolds() {
+      setHoldLoading(true);
+      setError(null);
+      try {
+        const payloadLines =
+          fromCart && snapshot.length > 0
+            ? snapshot.map((l) => ({
+                cartItemId: l.id,
+                roomSlug: l.roomSlug,
+                mode: l.bookingMode,
+                checkIn: l.checkIn,
+                checkOut: l.checkOut,
+                guests: l.guests,
+                previousBookingId: l.bookingId,
+              }))
+            : [
+                {
+                  cartItemId: `direct-${room}-${checkIn}`,
+                  roomSlug: room,
+                  mode,
+                  checkIn,
+                  checkOut,
+                  guests,
+                },
+              ];
+
+        const res = await fetch("/api/bookings/start-checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lines: payloadLines }),
+        });
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (!res.ok) {
+          const detail =
+            data.results?.find(
+              (r: { available?: boolean; reason?: string }) => !r.available,
+            )?.reason || data.error;
+          setError(
+            detail ||
+              "One or more rooms are no longer available. Update your Saved list and try again.",
+          );
+          setHoldLoading(false);
+          return;
+        }
+
+        for (const hold of data.holds as Array<{
+          cartItemId: string;
+          bookingId: string;
+          holdExpiresAt: string | null;
+          reference?: string;
+          nights?: number;
+          ratePerNightPkr?: number;
+          subtotalPkr?: number;
+          effectivePerNightPkr?: number;
+          bedsBooked?: number;
+        }>) {
+          const match = snapshot.find((i) => i.id === hold.cartItemId);
+          if (match) {
+            updateItem(match.id, {
+              bookingId: hold.bookingId,
+              holdExpiresAt: hold.holdExpiresAt,
+              reference: hold.reference,
+              nights: hold.nights ?? match.nights,
+              ratePerNightPkr: hold.ratePerNightPkr ?? match.ratePerNightPkr,
+              subtotalPkr: hold.subtotalPkr ?? match.subtotalPkr,
+              effectivePerNightPkr:
+                hold.effectivePerNightPkr ?? match.effectivePerNightPkr,
+              bedsBooked: hold.bedsBooked ?? match.bedsBooked,
+            });
+          }
+        }
+
+        if (data.holds?.[0]?.bookingId) {
+          setBookingId(data.holds[0].bookingId as string);
+        }
+        if (data.holdExpiresAt) {
+          setHoldExpiresAt(data.holdExpiresAt as string);
+        } else {
+          setHoldExpiresAt(null);
+        }
+
+        if (data.results?.length && fromCart && snapshot.length > 0) {
+          setMultiTotal(
+            data.results.reduce(
+              (s: number, r: { subtotalPkr: number }) => s + r.subtotalPkr,
+              0,
+            ),
+          );
+        } else if (data.results?.[0] && !(fromCart && snapshot.length > 0)) {
+          const r = data.results[0];
+          setQuote((q) =>
+            q
+              ? {
+                  ...q,
+                  nights: r.nights,
+                  staySubtotalPkr: r.subtotalPkr,
+                  effectivePerNightPkr: r.effectivePerNightPkr,
+                  roomName: r.roomName,
+                }
+              : q,
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setError("Could not reserve rooms for checkout. Please try again.");
+        }
+      } finally {
+        if (!cancelled) setHoldLoading(false);
+      }
+    }
+
+    void startHolds();
+    return () => {
+      cancelled = true;
+    };
+    // Start once when cart is ready — do not re-run when items patch after hold
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartHydrated, fromCart, checkoutItems.length, room, checkIn, checkOut]);
+
+  // Live countdown while hold is active
+  useEffect(() => {
+    if (!holdExpiresAt) {
+      setHoldLeftSec(null);
+      return;
+    }
+    function tick() {
+      const left = Math.max(
+        0,
+        Math.ceil((new Date(holdExpiresAt!).getTime() - Date.now()) / 1000),
+      );
+      setHoldLeftSec(left);
+    }
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [holdExpiresAt]);
 
   const startGraceModal = useCallback(() => {
+    if (graceActive.current) return;
+    graceActive.current = true;
     setSessionModal(true);
     setGraceLeft(GRACE_SECONDS);
     if (graceTimer.current) clearInterval(graceTimer.current);
@@ -151,18 +349,24 @@ export function CheckoutForm() {
       setGraceLeft((s) => {
         if (s <= 1) {
           if (graceTimer.current) clearInterval(graceTimer.current);
-          clearCart();
-          toast("Your booking session expired — please search again");
-          router.replace("/");
+          graceActive.current = false;
+          clearHoldMeta();
+          setHoldExpiresAt(null);
+          setBookingId(null);
+          setSessionModal(false);
+          toast(
+            "Hold expired — your Saved rooms are still here, but are no longer locked",
+          );
+          router.replace("/booking-summary");
           return 0;
         }
         return s - 1;
       });
     }, 1000);
-  }, [clearCart, router, toast]);
+  }, [clearHoldMeta, router, toast]);
 
   useEffect(() => {
-    if (!holdExpiresAt) return;
+    if (!holdExpiresAt || sessionModal) return;
     const warnMs = new Date(holdExpiresAt).getTime() - Date.now();
     if (warnMs <= 0) {
       startGraceModal();
@@ -170,7 +374,7 @@ export function CheckoutForm() {
     }
     const id = window.setTimeout(startGraceModal, warnMs);
     return () => clearTimeout(id);
-  }, [holdExpiresAt, startGraceModal]);
+  }, [holdExpiresAt, startGraceModal, sessionModal]);
 
   const amountNow = useMemo(() => {
     if (lines && multiTotal != null) {
@@ -189,27 +393,66 @@ export function CheckoutForm() {
     quote?.isGroupNoAdvance ||
     (lines != null && lines.reduce((s, l) => s + l.guests, 0) >= 10);
 
+  const addRoomsHref = useMemo(() => {
+    const ci = lines?.[0]?.checkIn || checkIn;
+    const co = lines?.[0]?.checkOut || checkOut;
+    const g = lines?.[0]?.guests || guests;
+    if (ci && co) {
+      return `/rooms?checkin=${encodeURIComponent(ci)}&checkout=${encodeURIComponent(co)}&guests=${g}`;
+    }
+    return "/rooms";
+  }, [lines, checkIn, checkOut, guests]);
+
   async function keepRoom() {
-    if (!bookingId) {
-      // Extend client-side clock if hold not yet server-created
-      setHoldExpiresAt(
-        new Date(Date.now() + Number(process.env.NEXT_PUBLIC_HOLD_MINUTES || 15) * 60000).toISOString(),
-      );
+    const ids = checkoutItems
+      .map((i) => i.bookingId)
+      .filter((id): id is string => Boolean(id));
+    const targetIds = ids.length > 0 ? ids : bookingId ? [bookingId] : [];
+
+    if (targetIds.length === 0) {
+      const next = new Date(
+        Date.now() + HOLD_MINUTES * 60 * 1000,
+      ).toISOString();
+      setHoldExpiresAt(next);
+      graceActive.current = false;
       setSessionModal(false);
       if (graceTimer.current) clearInterval(graceTimer.current);
       return;
     }
-    const res = await fetch("/api/bookings/extend-hold", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bookingId }),
-    });
-    if (res.ok) {
+
+    let soonest: string | null = null;
+    let ok = true;
+    for (const id of targetIds) {
+      const res = await fetch("/api/bookings/extend-hold", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: id }),
+      });
+      if (!res.ok) {
+        ok = false;
+        continue;
+      }
       const data = await res.json();
-      setHoldExpiresAt(data.holdExpiresAt);
-      setSessionModal(false);
-      if (graceTimer.current) clearInterval(graceTimer.current);
+      const match = checkoutItems.find((i) => i.bookingId === id);
+      if (match) updateItem(match.id, { holdExpiresAt: data.holdExpiresAt });
+      if (
+        data.holdExpiresAt &&
+        (!soonest ||
+          new Date(data.holdExpiresAt).getTime() < new Date(soonest).getTime())
+      ) {
+        soonest = data.holdExpiresAt;
+      }
     }
+
+    if (!ok || !soonest) {
+      toast("Could not extend your hold — try again");
+      return;
+    }
+
+    setHoldExpiresAt(soonest);
+    graceActive.current = false;
+    setSessionModal(false);
+    if (graceTimer.current) clearInterval(graceTimer.current);
   }
 
   async function onConfirm(e: React.FormEvent) {
@@ -222,7 +465,67 @@ export function CheckoutForm() {
     setLoading(true);
     setError(null);
     try {
-      // Silent token refresh if expired / missing before submit
+      // Hard availability + price re-check immediately before payment
+      const checkLines =
+        lines && lines.length > 0
+          ? lines.map((l) => ({
+              roomSlug: l.roomSlug,
+              mode: l.mode,
+              checkIn: l.checkIn,
+              checkOut: l.checkOut,
+              guests: l.guests,
+              excludeBookingId: l.bookingId,
+            }))
+          : [
+              {
+                roomSlug: room,
+                mode,
+                checkIn,
+                checkOut,
+                guests,
+                excludeBookingId: bookingId || undefined,
+              },
+            ];
+
+      const checkRes = await fetch("/api/bookings/check-availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lines: checkLines }),
+      });
+      const checkData = await checkRes.json();
+      if (!checkRes.ok) {
+        throw new Error(
+          checkData.results?.find(
+            (r: { available?: boolean; reason?: string }) => !r.available,
+          )?.reason ||
+            checkData.error ||
+            "Rooms are no longer available",
+        );
+      }
+
+      if (checkData.results?.length && lines) {
+        setMultiTotal(checkData.totalPkr);
+        for (const r of checkData.results as Array<{
+          roomSlug: string;
+          subtotalPkr: number;
+          nights: number;
+          effectivePerNightPkr: number;
+          ratePerNightPkr: number;
+          bedsBooked: number;
+        }>) {
+          const match = checkoutItems.find((i) => i.roomSlug === r.roomSlug);
+          if (match) {
+            updateItem(match.id, {
+              subtotalPkr: r.subtotalPkr,
+              nights: r.nights,
+              effectivePerNightPkr: r.effectivePerNightPkr,
+              ratePerNightPkr: r.ratePerNightPkr,
+              bedsBooked: r.bedsBooked,
+            });
+          }
+        }
+      }
+
       if (!safepayToken && !isGroup) {
         await refreshSafepayToken();
       }
@@ -236,6 +539,7 @@ export function CheckoutForm() {
                 checkIn: l.checkIn,
                 checkOut: l.checkOut,
                 guests: l.guests,
+                holdBookingId: l.bookingId,
               })),
               guestName: name,
               guestEmail: email,
@@ -254,21 +558,38 @@ export function CheckoutForm() {
               guestPhone: phone,
               payOption: isGroup ? "none" : payOption,
               preferredPaymentMethod: method,
+              holdBookingId: bookingId || undefined,
             };
+
+      const authHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      try {
+        const { hasSupabase, createBrowserSupabase } = await import(
+          "@/lib/supabase/client"
+        );
+        if (hasSupabase()) {
+          const { data: sessionData } =
+            await createBrowserSupabase().auth.getSession();
+          const token = sessionData.session?.access_token;
+          if (token) authHeaders.Authorization = `Bearer ${token}`;
+        }
+      } catch {
+        /* auth optional */
+      }
 
       const res = await fetch("/api/bookings/reserve", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders,
         body: JSON.stringify(payload),
       });
       let data = await res.json();
 
-      // One silent retry with fresh Safepay token on payment gateway failure
       if (!res.ok && data.error?.toLowerCase?.().includes("safepay")) {
         await refreshSafepayToken();
         const retry = await fetch("/api/bookings/reserve", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: authHeaders,
           body: JSON.stringify(payload),
         });
         data = await retry.json();
@@ -280,16 +601,21 @@ export function CheckoutForm() {
       setBookingId(data.booking.id);
       if (data.booking.holdExpiresAt) {
         setHoldExpiresAt(data.booking.holdExpiresAt);
-        holdCreated.current = true;
       }
+
+      const confirmedRef =
+        data.reference || data.booking?.reference || data.order?.reference;
+      const scenario = data.accountLinkScenario as string | undefined;
 
       if (
         data.booking.status === "confirmed_no_advance" ||
         payOption === "none" ||
         isGroup
       ) {
-        clearCart();
-        router.push(`/booking/${data.booking.reference}`);
+        clearCheckoutItems();
+        const qs = new URLSearchParams({ ref: confirmedRef });
+        if (scenario) qs.set("scenario", scenario);
+        router.push(`/booking-confirmed?${qs.toString()}`);
         return;
       }
 
@@ -298,24 +624,24 @@ export function CheckoutForm() {
         return;
       }
 
-      clearCart();
-      router.push(`/booking/${data.booking.reference}`);
-    } catch {
+      clearCheckoutItems();
+      if (confirmedRef) {
+        const qs = new URLSearchParams({ ref: confirmedRef });
+        if (scenario) qs.set("scenario", scenario);
+        router.push(`/booking-confirmed?${qs.toString()}`);
+      } else {
+        router.push(`/booking/${data.booking.reference}`);
+      }
+    } catch (err) {
       setError(
-        "Payment failed, you have not been charged — please try again or choose another method",
+        err instanceof Error
+          ? err.message
+          : "Payment failed, you have not been charged — please try again or choose another method",
       );
     } finally {
       setLoading(false);
     }
   }
-
-  // Start invisible hold clock when landing (client-side preview until reserve)
-  useEffect(() => {
-    if (holdCreated.current || holdExpiresAt) return;
-    if (!(room && checkIn && checkOut) && !(lines && lines.length)) return;
-    const mins = Number(process.env.NEXT_PUBLIC_HOLD_MINUTES || 15);
-    setHoldExpiresAt(new Date(Date.now() + mins * 60 * 1000).toISOString());
-  }, [room, checkIn, checkOut, lines, holdExpiresAt]);
 
   if (!lines?.length && (!room || !checkIn || !checkOut)) {
     return (
@@ -329,6 +655,12 @@ export function CheckoutForm() {
     );
   }
 
+  function formatHoldClock(totalSec: number) {
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
   return (
     <>
       <form
@@ -340,6 +672,15 @@ export function CheckoutForm() {
             <h1 className="font-display text-3xl text-ink md:text-4xl">
               Checkout
             </h1>
+            {holdLoading ? (
+              <p className="mt-2 text-sm text-ink-muted">
+                Confirming availability and locking your rooms…
+              </p>
+            ) : holdLeftSec != null ? (
+              <p className="mt-2 font-mono text-sm text-olive">
+                Rooms held for {formatHoldClock(holdLeftSec)}
+              </p>
+            ) : null}
           </div>
 
           <section className="space-y-3">
@@ -403,82 +744,34 @@ export function CheckoutForm() {
                 </button>
               </div>
 
-              <fieldset>
-                <legend className="mb-2 text-sm text-ink-muted">
-                  Payment method
-                </legend>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {METHODS.map((m) => (
-                    <label
-                      key={m.id}
-                      className={`flex cursor-pointer items-start gap-3 rounded-card border p-3 transition-colors ${
-                        method === m.id
-                          ? "border-sage bg-sage/10"
-                          : "border-olive/15 bg-white hover:bg-cream-100/60"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="pay-method"
-                        value={m.id}
-                        checked={method === m.id}
-                        onChange={() => setMethod(m.id)}
-                        className="mt-1"
-                      />
-                      <span>
-                        <span className="block text-sm font-medium text-ink">
-                          {m.label}
-                        </span>
-                        <span className="block text-xs text-ink-muted">
-                          {m.hint}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-
-              {(method === "jazzcash" || method === "easypaisa") && (
-                <label className="block text-sm">
-                  <span className="text-ink-muted">
-                    Wallet mobile number
-                  </span>
-                  <input
-                    required
-                    type="tel"
-                    value={walletPhone}
-                    onChange={(e) => setWalletPhone(e.target.value)}
-                    className="mt-1 h-11 w-full rounded-soft border border-olive/15 bg-white px-3 text-sm"
-                    placeholder="03XX XXXXXXX"
-                  />
-                  <span className="mt-1 block text-xs text-ink-soft">
-                    PIN/OTP is entered inside Safepay&apos;s secure widget.
-                  </span>
-                </label>
-              )}
-
-              {method === "card" && (
-                <div className="rounded-soft border border-olive/10 bg-cream-100/60 p-4 text-sm text-ink-muted">
-                  Card details are collected in Safepay&apos;s secure hosted
-                  fields after you confirm — the card number never touches our
-                  servers.
-                  {safepayToken ? (
-                    <span className="mt-1 block text-xs text-olive">
-                      Payment session ready
-                    </span>
-                  ) : (
-                    <span className="mt-1 block text-xs text-ink-soft">
-                      Preparing secure session…
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {method === "raast" && (
-                <p className="text-xs text-ink-soft">
-                  You&apos;ll complete Raast inside Safepay&apos;s hosted
-                  checkout — no bank details are collected on this page.
+              <div className="rounded-soft border border-olive/10 bg-cream-100/60 p-4 text-sm text-ink-muted">
+                <p className="font-medium text-ink">Pay with card (Safepay)</p>
+                <p className="mt-1">
+                  You&apos;ll be redirected to Safepay&apos;s secure page for Visa /
+                  Mastercard (Google Pay may also appear). Card details never
+                  touch our servers.
                 </p>
+                <p className="mt-2 text-xs text-ink-soft">
+                  JazzCash, Easypaisa, and Raast are not enabled on this sandbox
+                  account yet — those show after Safepay activates them on your
+                  live merchant account.
+                </p>
+              </div>
+
+              {safepayStatus === "loading" && (
+                <p className="text-xs text-ink-soft">
+                  Connecting to payment provider…
+                </p>
+              )}
+              {safepayStatus === "unavailable" && (
+                <p className="rounded-soft bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  Payment provider is temporarily unavailable. You can still
+                  confirm — we&apos;ll retry when you pay. If it keeps failing,
+                  contact us on WhatsApp.
+                </p>
+              )}
+              {safepayStatus === "ready" && (
+                <p className="text-xs text-olive">Payment provider ready</p>
               )}
             </section>
           )}
@@ -523,14 +816,16 @@ export function CheckoutForm() {
           <div className="sticky bottom-0 z-20 -mx-5 border-t border-olive/10 bg-cream-50/95 p-4 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
             <button
               type="submit"
-              disabled={loading || !tos}
+              disabled={loading || holdLoading || !tos}
               className="inline-flex h-12 w-full items-center justify-center rounded-soft bg-olive text-sm font-medium text-cream-50 transition-all hover:scale-[1.02] hover:bg-olive-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
             >
               {loading
-                ? "Processing…"
-                : isGroup
-                  ? "Confirm Booking (No Advance Required)"
-                  : `Confirm and Pay · ${formatCurrency(amountNow)}`}
+                ? "Confirming availability…"
+                : holdLoading
+                  ? "Locking rooms…"
+                  : isGroup
+                    ? "Confirm Booking (No Advance Required)"
+                    : `Confirm and Pay · ${formatCurrency(amountNow)}`}
             </button>
           </div>
         </div>
@@ -567,22 +862,28 @@ export function CheckoutForm() {
               <li className="text-sm text-ink-muted">Loading quote…</li>
             )}
           </ul>
-          <div className="mt-4 flex justify-between border-t border-olive/10 pt-4 text-sm text-ink-muted">
-            {/* GST slot — add tax line here later without restructuring */}
-            <span>Tax</span>
-            <span className="font-mono">—</span>
-          </div>
-          <div className="mt-2 flex justify-between">
+          <div className="mt-4 flex justify-between border-t border-olive/10 pt-4">
             <span className="text-ink-muted">Due now</span>
             <span className="font-mono text-lg font-medium text-olive">
               {formatCurrency(amountNow)}
             </span>
           </div>
+          {holdLeftSec != null && (
+            <p className="mt-4 rounded-soft bg-cream-100/80 px-3 py-2 font-mono text-xs text-olive">
+              Hold ends in {formatHoldClock(holdLeftSec)}
+            </p>
+          )}
+          <a
+            href={addRoomsHref}
+            className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-soft border border-olive/20 bg-white text-sm font-medium text-olive transition-all hover:scale-[1.02] hover:bg-cream-100 active:scale-[0.98]"
+          >
+            Add more rooms
+          </a>
           <a
             href="/booking-summary"
-            className="mt-4 inline-block text-sm text-olive underline"
+            className="mt-3 inline-block text-sm text-olive underline"
           >
-            Edit
+            Edit Saved
           </a>
         </aside>
       </form>
@@ -590,13 +891,13 @@ export function CheckoutForm() {
       <Modal
         open={sessionModal}
         labelledBy="hold-modal-title"
-        title="Are you still there?"
+        title="Still there?"
       >
         <p id="hold-modal-title" className="sr-only">
-          Session about to expire
+          Hold about to expire
         </p>
         <p className="text-sm text-ink-muted">
-          We&apos;re about to release your room. Keep your booking to continue
+          We&apos;re about to release your rooms. Keep your hold to finish
           checkout.
         </p>
         <div className="mt-5 flex items-center justify-center">
