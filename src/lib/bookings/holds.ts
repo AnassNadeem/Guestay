@@ -1,7 +1,9 @@
+import { checkLineAvailability } from "@/lib/bookings/availability";
 import {
   createLocalHold,
   extendLocalHold,
   getLocalBooking,
+  listLocalBookings,
   updateLocalBooking,
   type LocalBooking,
 } from "@/lib/bookings/local-store";
@@ -15,7 +17,7 @@ function holdMinutes() {
     process.env.BOOKING_HOLD_MINUTES ||
       (process.env.BOOKING_HOLD_HOURS
         ? Number(process.env.BOOKING_HOLD_HOURS) * 60
-        : 15),
+        : 10),
   );
 }
 
@@ -33,8 +35,9 @@ export type HoldResult = {
 };
 
 /**
- * Create a per-room 15-minute hold. Prefers Supabase; falls back to local-store.
- * Called on Add / Book Now — not only at checkout confirm.
+ * Create a short inventory hold. Prefers Supabase; falls back to local-store.
+ * Pass skipAvailabilityCheck when the caller already verified availability
+ * (e.g. start-checkout) to avoid a duplicate round-trip.
  */
 export async function createRoomHold(input: {
   roomSlug: string;
@@ -46,9 +49,26 @@ export async function createRoomHold(input: {
   guestName?: string;
   guestEmail?: string;
   guestPhone?: string;
+  /** When true, skip the second availability RPC — caller already checked */
+  skipAvailabilityCheck?: boolean;
 }): Promise<HoldResult> {
   const room = await getRoomBySlug(input.roomSlug);
   if (!room) throw new Error("Room not found");
+
+  if (!input.skipAvailabilityCheck) {
+    const availability = await checkLineAvailability({
+      roomSlug: input.roomSlug,
+      mode: input.mode,
+      checkIn: input.checkIn,
+      checkOut: input.checkOut,
+      guests: input.guests,
+    });
+    if (!availability.available) {
+      throw new Error(
+        availability.reason || "Room is no longer available for these dates",
+      );
+    }
+  }
 
   const quote = quoteStay({
     room,
@@ -66,9 +86,8 @@ export async function createRoomHold(input: {
   });
 
   const mins = holdMinutes();
-  const holdExpiresAt = quote.isGroupNoAdvance
-    ? null
-    : new Date(Date.now() + mins * 60 * 1000).toISOString();
+  // Always hold until reserve/payment confirms — even for group (no-advance)
+  const holdExpiresAt = new Date(Date.now() + mins * 60 * 1000).toISOString();
 
   const guestName = input.guestName || "Guest";
   const guestEmail = input.guestEmail || "hold@guestay.pk";
@@ -84,7 +103,11 @@ export async function createRoomHold(input: {
         .maybeSingle();
 
       if (dbRoom?.id) {
-        const reference = `GST-${Date.now().toString(36).toUpperCase()}`;
+        // HOLD- only until payment/confirm success mints GST-…
+        const { generateHoldReference } = await import(
+          "@/lib/bookings/reference"
+        );
+        const reference = generateHoldReference();
         const { data, error } = await sb
           .from("bookings")
           .insert({
@@ -99,9 +122,7 @@ export async function createRoomHold(input: {
             check_in: input.checkIn,
             check_out: input.checkOut,
             nights: quote.nights,
-            status: quote.isGroupNoAdvance
-              ? "confirmed_no_advance"
-              : "pending_hold",
+            status: "pending_hold",
             source: "direct",
             tier_applied: quote.tier,
             rate_per_night_pkr: quote.ratePerNightPkr,
@@ -119,21 +140,12 @@ export async function createRoomHold(input: {
           .select("id, reference, hold_expires_at, status")
           .single();
 
-        if (!error && data) {
-          // Mirror into local cache for optimistic UI / cron fallback
+          if (!error && data) {
+          // Lightweight local mirror — skip full createLocalHold (avoids another quote path)
           try {
-            const local = await createLocalHold({
-              roomSlug: input.roomSlug,
-              mode: input.mode,
-              checkIn: input.checkIn,
-              checkOut: input.checkOut,
-              guests: input.guests,
-              guestName,
-              guestEmail,
-              guestPhone,
-            });
-            updateLocalBooking(local.booking.id, {
-              id: data.id,
+            const localId = data.id as string;
+            updateLocalBooking(localId, {
+              id: localId,
               reference: data.reference,
               holdExpiresAt: data.hold_expires_at,
               notes: `cart:${input.cartItemId}`,
@@ -387,6 +399,106 @@ export async function releaseRoomHold(bookingId: string) {
   const local = getLocalBooking(bookingId);
   if (local) {
     updateLocalBooking(local.id, {
+      status: "expired_hold",
+      holdExpiresAt: null,
+    });
+  }
+}
+
+/**
+ * Drop leftover pending holds for a checkout line so refreshes don't stack
+ * inventory locks (and exclusive rooms don't look "unavailable").
+ */
+export async function releaseHoldsByCartItemId(cartItemId: string) {
+  if (!cartItemId) return;
+
+  if (hasSupabase()) {
+    try {
+      const sb = createServiceSupabase();
+      await sb
+        .from("bookings")
+        .update({
+          status: "expired_hold",
+          hold_expires_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("cart_item_id", cartItemId)
+        .eq("status", "pending_hold");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const note = `cart:${cartItemId}`;
+  for (const b of listLocalBookings()) {
+    if (b.status === "pending_hold" && b.notes === note) {
+      updateLocalBooking(b.id, {
+        status: "expired_hold",
+        holdExpiresAt: null,
+      });
+    }
+  }
+}
+
+/**
+ * Clear abandoned checkout locks for a room/date range.
+ * Soft "Saved" items never create holds — only checkout does, and those use
+ * the placeholder guest email until the guest confirms. Leftover locks from
+ * earlier attempts (different cart line ids) were falsely blocking the room.
+ */
+export async function releaseAbandonedCheckoutHolds(input: {
+  roomSlug: string;
+  checkIn: string;
+  checkOut: string;
+}) {
+  const placeholderEmail = "hold@guestay.pk";
+
+  if (hasSupabase()) {
+    try {
+      const sb = createServiceSupabase();
+      const { data: dbRoom } = await sb
+        .from("rooms")
+        .select("id")
+        .eq("slug", input.roomSlug)
+        .maybeSingle();
+
+      if (dbRoom?.id) {
+        // Fetch overlapping placeholder holds then expire — PostgREST can't
+        // express date-overlap + email in one filter cleanly.
+        const { data: rows } = await sb
+          .from("bookings")
+          .select("id, check_in, check_out, guest_email, cart_item_id")
+          .eq("room_id", dbRoom.id)
+          .eq("status", "pending_hold")
+          .eq("guest_email", placeholderEmail)
+          .lt("check_in", input.checkOut)
+          .gt("check_out", input.checkIn);
+
+        const ids = (rows || []).map((r) => r.id as string).filter(Boolean);
+        if (ids.length > 0) {
+          await sb
+            .from("bookings")
+            .update({
+              status: "expired_hold",
+              hold_expires_at: null,
+              updated_at: new Date().toISOString(),
+            })
+            .in("id", ids);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  for (const b of listLocalBookings()) {
+    if (b.roomSlug !== input.roomSlug) continue;
+    if (b.status !== "pending_hold") continue;
+    if (b.guestEmail !== placeholderEmail && !b.notes?.startsWith("cart:")) {
+      continue;
+    }
+    if (!(b.checkIn < input.checkOut && b.checkOut > input.checkIn)) continue;
+    updateLocalBooking(b.id, {
       status: "expired_hold",
       holdExpiresAt: null,
     });
