@@ -3,8 +3,8 @@ import { useGetIdentity, usePermissions } from "@refinedev/core";
 export type Role = "owner" | "manager" | "staff";
 
 /**
- * Central RBAC hook. Owner has full access; manager is restricted (no revenue,
- * analytics, rooms management, staff/users; refunds are view+comment only).
+ * Owner: full access including revenue, analytics, rooms CRUD, staff.
+ * Manager: bookings + rooms view + ops pages; no revenue/analytics/staff.
  */
 export function useRole() {
   const { data: perm } = usePermissions<string>();
@@ -17,6 +17,7 @@ export function useRole() {
     isOwner,
     isManager,
     canSeeRevenue: isOwner,
+    canViewRooms: isOwner || isManager,
     canManageRooms: isOwner,
     canSeeAnalytics: isOwner,
     canManageStaff: isOwner,

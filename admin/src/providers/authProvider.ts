@@ -1,95 +1,89 @@
 import type { AuthProvider } from "@refinedev/core";
 import { supabase } from "../supabase";
 
-const DEMO_USERS = [
-  {
-    email: "owner@guestay.test",
-    password: "OwnerDemo#2026",
-    role: "owner",
-    name: "Owner Demo",
-  },
-  {
-    email: "manager@guestay.test",
-    password: "ManagerDemo#2026",
-    role: "manager",
-    name: "Manager Demo",
-  },
-] as const;
+async function loadProfileRole(userId: string): Promise<string> {
+  if (!supabase) return "manager";
+  const { data } = await supabase
+    .from("profiles")
+    .select("role, full_name, email")
+    .eq("id", userId)
+    .maybeSingle();
+  return (data?.role as string) || "manager";
+}
 
 export const authProvider: AuthProvider = {
   login: async ({ email, password }) => {
-    // Dev seed path when Supabase not configured
-    const demo = DEMO_USERS.find(
-      (u) => u.email === email && u.password === password,
-    );
-    if (demo && !import.meta.env.VITE_SUPABASE_URL) {
-      localStorage.setItem(
-        "guestay_admin_user",
-        JSON.stringify({ email: demo.email, role: demo.role, name: demo.name }),
-      );
-      return { success: true, redirectTo: "/" };
+    if (!supabase) {
+      return {
+        success: false,
+        error: {
+          name: "ConfigError",
+          message: "Supabase is not configured for admin login",
+        },
+      };
     }
 
-    if (supabase) {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) return { success: false, error };
-      return { success: true, redirectTo: "/" };
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) return { success: false, error };
+
+    const role = data.user ? await loadProfileRole(data.user.id) : "guest";
+    if (role !== "owner" && role !== "manager") {
+      await supabase.auth.signOut();
+      return {
+        success: false,
+        error: {
+          name: "Forbidden",
+          message: "This account is not staff. Owner/manager role required.",
+        },
+      };
     }
 
-    if (demo) {
-      localStorage.setItem(
-        "guestay_admin_user",
-        JSON.stringify({ email: demo.email, role: demo.role, name: demo.name }),
-      );
-      return { success: true, redirectTo: "/" };
-    }
-
-    return {
-      success: false,
-      error: { name: "LoginError", message: "Invalid credentials" },
-    };
+    return { success: true, redirectTo: "/" };
   },
   logout: async () => {
-    localStorage.removeItem("guestay_admin_user");
     await supabase?.auth.signOut();
     return { success: true, redirectTo: "/login" };
   },
   check: async () => {
-    if (localStorage.getItem("guestay_admin_user")) {
-      return { authenticated: true };
+    if (!supabase) {
+      return { authenticated: false, redirectTo: "/login", logout: true };
     }
-    if (supabase) {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) return { authenticated: true };
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      return { authenticated: false, redirectTo: "/login", logout: true };
     }
-    return { authenticated: false, redirectTo: "/login", logout: true };
+    const role = await loadProfileRole(data.session.user.id);
+    if (role !== "owner" && role !== "manager") {
+      await supabase.auth.signOut();
+      return { authenticated: false, redirectTo: "/login", logout: true };
+    }
+    return { authenticated: true };
   },
   getIdentity: async () => {
-    const raw = localStorage.getItem("guestay_admin_user");
-    if (raw) {
-      const u = JSON.parse(raw) as { email: string; name: string; role: string };
-      return { id: u.email, name: u.name, email: u.email, role: u.role };
-    }
-    if (supabase) {
-      const { data } = await supabase.auth.getUser();
-      const user = data.user;
-      if (user) {
-        return {
-          id: user.id,
-          name: (user.user_metadata?.full_name as string) || user.email,
-          email: user.email,
-        };
-      }
-    }
-    return null;
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getUser();
+    const user = data.user;
+    if (!user) return null;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, full_name, email")
+      .eq("id", user.id)
+      .maybeSingle();
+    return {
+      id: user.id,
+      name: profile?.full_name || user.email,
+      email: profile?.email || user.email,
+      role: profile?.role || "manager",
+    };
   },
   getPermissions: async () => {
-    const raw = localStorage.getItem("guestay_admin_user");
-    if (raw) return (JSON.parse(raw) as { role: string }).role;
-    return "manager";
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return null;
+    return loadProfileRole(data.user.id);
   },
   onError: async (error) => ({ error }),
 };
