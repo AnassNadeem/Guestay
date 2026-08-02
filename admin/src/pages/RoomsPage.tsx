@@ -3,8 +3,9 @@ import { Navigate } from "react-router-dom";
 import { useRef, useState } from "react";
 import { useRole } from "../hooks/useRole";
 import { PlusIcon, XIcon, ChevronLeftIcon, ChevronRightIcon } from "../components/icons";
+import { supabase } from "../supabase";
 
-type Photo = { id: string; name: string; thumbnail: boolean };
+type Photo = { id: string; name: string; thumbnail: boolean; url?: string };
 
 type Room = {
   id: string;
@@ -52,10 +53,10 @@ export function RoomsPage() {
   const { data, refetch } = useList({ resource: "rooms" });
   const { mutate: update } = useUpdate();
   const { mutate: create } = useCreate();
-  const { canManageRooms } = useRole();
+  const { canManageRooms, canViewRooms } = useRole();
   const [modal, setModal] = useState<null | { mode: "create" | "edit"; room?: Room }>(null);
 
-  if (!canManageRooms) return <Navigate to="/" replace />;
+  if (!canViewRooms) return <Navigate to="/" replace />;
 
   const rooms = (data?.data || []) as Room[];
 
@@ -63,19 +64,49 @@ export function RoomsPage() {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1>Rooms</h1>
-        <button type="button" className="btn" style={{ gap: 6 }} onClick={() => setModal({ mode: "create" })}>
-          <PlusIcon size={16} /> New Room
-        </button>
+        {canManageRooms && (
+          <button type="button" className="btn" style={{ gap: 6 }} onClick={() => setModal({ mode: "create" })}>
+            <PlusIcon size={16} /> New Room
+          </button>
+        )}
       </div>
       <p style={{ color: "#6b6b60" }}>
-        Soft-delete deactivates a room. Hard-delete only when zero bookings reference it.
+        {canManageRooms
+          ? "Soft-delete deactivates a room. Hard-delete only when zero bookings reference it."
+          : "View-only. Ask the owner to add or edit rooms."}
       </p>
 
       <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
         {rooms.map((r) => (
           <div key={r.id} className="card">
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-              <div>
+              <div style={{ display: "flex", gap: 12, minWidth: 0, flex: 1 }}>
+                {r.photos?.[0]?.url ? (
+                  <img
+                    src={r.photos[0].url}
+                    alt=""
+                    style={{
+                      width: 72,
+                      height: 72,
+                      objectFit: "cover",
+                      borderRadius: 8,
+                      flexShrink: 0,
+                      background: "#EAECE4",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: 8,
+                      background: "#EAECE4",
+                      flexShrink: 0,
+                    }}
+                    aria-hidden
+                  />
+                )}
+                <div style={{ minWidth: 0 }}>
                 <h2 style={{ margin: 0 }}>{r.name}</h2>
                 <p style={{ margin: "4px 0", color: "#6b6b60" }}>
                   {r.type.replace(/_/g, " ")} · sleeps {r.capacity} · {r.beds ?? "—"} bed(s) · {r.status}
@@ -91,23 +122,28 @@ export function RoomsPage() {
                 <div style={{ marginTop: 8, fontSize: 13, color: "#6b6b60" }}>
                   Pricing: Rs {r.tier1} / {r.tier2} / {r.tier3} / {r.tier4} · photos: {(r.photos || []).length}
                 </div>
+                </div>
               </div>
               <div style={{ display: "flex", gap: 8, height: "fit-content" }}>
-                <button type="button" className="btn secondary" onClick={() => setModal({ mode: "edit", room: r })}>
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className="btn secondary"
-                  onClick={() =>
-                    update(
-                      { resource: "rooms", id: r.id, values: { status: r.status === "active" ? "archived" : "active" } },
-                      { onSuccess: () => refetch() },
-                    )
-                  }
-                >
-                  {r.status === "active" ? "Soft-delete" : "Restore"}
-                </button>
+                {canManageRooms && (
+                  <>
+                    <button type="button" className="btn secondary" onClick={() => setModal({ mode: "edit", room: r })}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      onClick={() =>
+                        update(
+                          { resource: "rooms", id: r.id, values: { status: r.status === "active" ? "archived" : "active" } },
+                          { onSuccess: () => refetch() },
+                        )
+                      }
+                    >
+                      {r.status === "active" ? "Soft-delete" : "Restore"}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -120,11 +156,26 @@ export function RoomsPage() {
           onClose={() => setModal(null)}
           onSave={(draft) => {
             if (modal.mode === "edit" && modal.room) {
-              update({ resource: "rooms", id: modal.room.id, values: draft }, { onSuccess: () => refetch() });
+              update(
+                { resource: "rooms", id: modal.room.id, values: draft },
+                {
+                  onSuccess: () => {
+                    setModal(null);
+                    refetch();
+                  },
+                },
+              );
             } else {
-              create({ resource: "rooms", values: { ...draft, status: "active" } }, { onSuccess: () => refetch() });
+              create(
+                { resource: "rooms", values: { ...draft, status: "active" } },
+                {
+                  onSuccess: () => {
+                    setModal(null);
+                    refetch();
+                  },
+                },
+              );
             }
-            setModal(null);
           }}
         />
       )}
@@ -163,6 +214,8 @@ function RoomForm({
       : { ...EMPTY },
   );
   const [amenityInput, setAmenityInput] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
@@ -176,16 +229,43 @@ function RoomForm({
     setAmenityInput("");
   }
 
-  function addPhotos(files: FileList | null) {
+  async function addPhotos(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const next: Photo[] = Array.from(files).map((f, i) => ({
-      id: `p_${Date.now()}_${i}`,
-      name: f.name,
-      thumbnail: false,
-    }));
-    const combined = [...(draft.photos || []), ...next];
-    if (!combined.some((p) => p.thumbnail) && combined[0]) combined[0].thumbnail = true;
-    set("photos", combined);
+    if (!supabase) {
+      setUploadError("Supabase is not configured — cannot upload photos.");
+      return;
+    }
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const uploaded: Photo[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i]!;
+        const ext = f.name.split(".").pop() || "jpg";
+        const path = `uploads/${Date.now()}_${i}.${ext}`;
+        const { error } = await supabase.storage
+          .from("room-images")
+          .upload(path, f, { cacheControl: "3600", upsert: false });
+        if (error) throw new Error(error.message);
+        const { data: pub } = supabase.storage.from("room-images").getPublicUrl(path);
+        uploaded.push({
+          id: `p_${Date.now()}_${i}`,
+          name: f.name,
+          thumbnail: false,
+          url: pub.publicUrl,
+        });
+      }
+      const combined = [...(draft.photos || []), ...uploaded];
+      if (!combined.some((p) => p.thumbnail) && combined[0]) {
+        combined[0] = { ...combined[0], thumbnail: true };
+      }
+      set("photos", combined);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   function movePhoto(index: number, delta: number) {
@@ -229,7 +309,7 @@ function RoomForm({
             <select value={draft.type} onChange={(e) => set("type", e.target.value)}>
               <option value="private_room">Private room</option>
               <option value="shared_bedroom">Shared bedroom</option>
-              <option value="entire_place">Entire place</option>
+              <option value="flat">Entire place / Flat</option>
             </select>
           </label>
           <label className="field">
@@ -296,7 +376,7 @@ function RoomForm({
 
         <h4 style={{ margin: "14px 0 8px" }}>Photos</h4>
         <p style={{ fontSize: 12, color: "#6b6b60", marginTop: 0 }}>
-          Stub UI — files are listed locally; upload wires to Supabase Storage when configured.
+          Uploads go to Supabase Storage (<code>room-images</code>). Set a thumbnail for the cover image.
         </p>
         <input
           ref={fileRef}
@@ -304,11 +384,20 @@ function RoomForm({
           multiple
           accept="image/*"
           style={{ display: "none" }}
-          onChange={(e) => addPhotos(e.target.files)}
+          onChange={(e) => void addPhotos(e.target.files)}
         />
-        <button type="button" className="btn secondary" style={{ gap: 6 }} onClick={() => fileRef.current?.click()}>
-          <PlusIcon size={15} /> Add photos
+        <button
+          type="button"
+          className="btn secondary"
+          style={{ gap: 6 }}
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+        >
+          <PlusIcon size={15} /> {uploading ? "Uploading…" : "Add photos"}
         </button>
+        {uploadError && (
+          <p style={{ color: "#b42318", fontSize: 13, marginTop: 8 }}>{uploadError}</p>
+        )}
         <div style={{ display: "grid", gap: 6, marginTop: 10 }}>
           {(draft.photos || []).map((p, i) => (
             <div
@@ -322,7 +411,27 @@ function RoomForm({
                 padding: "6px 8px",
               }}
             >
-              <span style={{ flex: 1, fontSize: 13 }}>{p.name}</span>
+              {p.url ? (
+                <img
+                  src={p.url}
+                  alt=""
+                  style={{
+                    width: 48,
+                    height: 48,
+                    objectFit: "cover",
+                    borderRadius: 6,
+                    background: "#EAECE4",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{ width: 48, height: 48, borderRadius: 6, background: "#EAECE4" }}
+                  aria-hidden
+                />
+              )}
+              <span style={{ flex: 1, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {p.name}
+              </span>
               {p.thumbnail && (
                 <span className="badge" style={{ background: "#E4F3E8", color: "#1E6B3A" }}>
                   Thumbnail
