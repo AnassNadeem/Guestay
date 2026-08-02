@@ -15,7 +15,7 @@ type Entry = {
 
 export function AuditLogPage() {
   const { canSeeAudit } = useRole();
-  const { data } = useList({ resource: "audit_log" });
+  const { data, isLoading } = useList({ resource: "audit_log" });
   const [q, setQ] = useState("");
 
   const entries = (data?.data || []) as Entry[];
@@ -38,8 +38,9 @@ export function AuditLogPage() {
     <div>
       <h1>Audit Log</h1>
       <p style={{ color: "#6b6b60" }}>
-        Owner-only activity trail. These sample entries come from the mock store; once the Supabase
-        <code style={{ margin: "0 4px" }}>audit_log</code> table is wired, real events will populate here automatically.
+        Owner-only activity trail from Supabase{" "}
+        <code style={{ margin: "0 4px" }}>audit_log</code>
+        — booking changes, refund decisions, and related writes.
       </p>
 
       <div className="toolbar">
@@ -52,10 +53,14 @@ export function AuditLogPage() {
       </div>
 
       <div className="card">
-        {rows.length === 0 ? (
+        {isLoading ? (
           <p style={{ color: "#9a9a8c", padding: "1rem 0.5rem", margin: 0 }}>
-            No audit entries yet. Actions like refund approvals, price changes, and user invites will
-            appear here.
+            Loading…
+          </p>
+        ) : rows.length === 0 ? (
+          <p style={{ color: "#9a9a8c", padding: "1rem 0.5rem", margin: 0 }}>
+            No audit entries yet. Refund approvals/denials and booking
+            inserts/updates/deletes will appear here.
           </p>
         ) : (
           <table className="table">
@@ -71,15 +76,22 @@ export function AuditLogPage() {
             <tbody>
               {rows.map((e) => (
                 <tr key={e.id}>
-                  <td style={{ whiteSpace: "nowrap" }}>{new Date(e.at).toLocaleString()}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {new Date(e.at).toLocaleString()}
+                  </td>
                   <td>{e.actor}</td>
                   <td>
-                    <span className="badge" style={{ background: "#EAECE4", color: "#3B4430" }}>
+                    <span
+                      className="badge"
+                      style={{ background: "#EAECE4", color: "#3B4430" }}
+                    >
                       {humanize(e.action.replace(/\./g, " "))}
                     </span>
                   </td>
-                  <td>{e.entity}</td>
-                  <td>{e.detail}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>
+                    {e.entity}
+                  </td>
+                  <td style={{ maxWidth: 360, fontSize: 13 }}>{e.detail}</td>
                 </tr>
               ))}
             </tbody>
