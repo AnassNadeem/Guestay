@@ -27,11 +27,20 @@ h3 {
 .admin-shell {
   display: grid;
   grid-template-columns: 240px 1fr;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .admin-shell.collapsed {
   grid-template-columns: 72px 1fr;
+}
+
+.admin-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -41,9 +50,11 @@ h3 {
   transition: background 0.12s ease;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   position: sticky;
   top: 0;
+  align-self: start;
 }
 
 .sidebar-head {
@@ -107,6 +118,17 @@ h3 {
   width: 40px;
   padding: 0;
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.icon-btn svg {
+  display: block;
+  flex-shrink: 0;
+  pointer-events: none;
 }
 
 .sidebar a {
@@ -144,10 +166,14 @@ h3 {
   position: sticky;
   top: 0;
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .content {
   padding: 1.5rem;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .card {
@@ -609,7 +635,17 @@ h3 {
     overflow-x: auto;
     border-right: none;
     border-bottom: 1px solid rgba(59, 68, 48, 0.12);
-    min-height: auto;
+    height: auto;
+    max-height: none;
     position: static;
+    align-self: stretch;
+  }
+  .admin-shell,
+  .admin-main {
+    height: auto;
+    overflow: visible;
+  }
+  .content {
+    overflow: visible;
   }
 }

@@ -1,4 +1,4 @@
-import { useGetIdentity, useList, useLogout } from "@refinedev/core";
+import { useGetIdentity, useList, useLogout, useUpdate } from "@refinedev/core";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRole } from "../hooks/useRole";
@@ -34,7 +34,7 @@ const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: DashboardIcon, end: true },
   { to: "/calendar", label: "Calendar", icon: CalendarIcon },
   { to: "/bookings", label: "Bookings", icon: BookingsIcon },
-  { to: "/rooms", label: "Rooms", icon: RoomsIcon, ownerOnly: true },
+  { to: "/rooms", label: "Rooms", icon: RoomsIcon },
   { to: "/guests", label: "Guests / CRM", icon: GuestsIcon },
   { to: "/analytics", label: "Analytics", icon: AnalyticsIcon, ownerOnly: true },
   { to: "/refunds", label: "Refund Requests", icon: RefundsIcon },
@@ -86,7 +86,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: bookings } = useList({ resource: "bookings" });
   const { data: rooms } = useList({ resource: "rooms" });
   const { data: guests } = useList({ resource: "guests" });
-  const { data: notifications } = useList({ resource: "notifications" });
+  const { data: notifications, refetch: refetchNotifs } = useList({
+    resource: "notifications",
+  });
+  const { mutate: updateNotif } = useUpdate();
 
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
@@ -130,6 +133,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     message: string;
     at: string;
     unread: boolean;
+    href?: string | null;
   }>;
   const unreadCount = notifs.filter((n) => n.unread).length;
 
@@ -176,16 +180,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="sidebar-footer">
-          <a
-            href={SITE_URL}
-            target="_blank"
-            rel="noreferrer"
-            title="View Storefront"
-            className="storefront-link"
-          >
-            <ExternalLinkIcon size={18} />
-            {!collapsed && <span>View Storefront</span>}
-          </a>
           <button
             type="button"
             className="signout-link"
@@ -198,7 +192,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div>
+      <div className="admin-main">
         <header className="topbar">
           <div className="search-wrap" ref={searchRef}>
             <SearchIcon size={18} />
@@ -284,6 +278,18 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <a
+              href={SITE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="btn secondary"
+              style={{ gap: 6, height: 36, textDecoration: "none" }}
+              title="View Storefront"
+            >
+              <ExternalLinkIcon size={16} />
+              <span style={{ fontSize: 13 }}>View Storefront</span>
+            </a>
+
             <div className="bell-wrap" ref={bellRef}>
               <button
                 type="button"
@@ -300,13 +306,48 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   {notifs.length === 0 && (
                     <div className="dropdown-empty">You’re all caught up.</div>
                   )}
-                  {notifs.map((n) => (
-                    <div key={n.id} className={`notif-item ${n.unread ? "unread" : ""}`}>
+                  {notifs.slice(0, 8).map((n) => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      className={`notif-item ${n.unread ? "unread" : ""}`}
+                      style={{
+                        all: "unset",
+                        display: "block",
+                        width: "100%",
+                        cursor: "pointer",
+                        padding: "8px 10px",
+                        boxSizing: "border-box",
+                        background: n.unread ? "rgba(166,172,126,0.14)" : "transparent",
+                      }}
+                      onMouseDown={() => {
+                        if (n.unread) {
+                          updateNotif(
+                            { resource: "notifications", id: n.id, values: { isRead: true } },
+                            { onSuccess: () => refetchNotifs() },
+                          );
+                        }
+                        if (n.href) navigate(n.href);
+                        else navigate("/notifications");
+                        setBellOpen(false);
+                      }}
+                    >
                       <div className="notif-title">{n.title}</div>
                       <div className="notif-msg">{n.message}</div>
                       <div className="notif-time">{timeAgo(n.at)}</div>
-                    </div>
+                    </button>
                   ))}
+                  <button
+                    type="button"
+                    className="dropdown-item"
+                    style={{ borderTop: "1px solid rgba(59,68,48,0.08)", marginTop: 4 }}
+                    onMouseDown={() => {
+                      navigate("/notifications");
+                      setBellOpen(false);
+                    }}
+                  >
+                    View all notifications
+                  </button>
                 </div>
               )}
             </div>
@@ -347,13 +388,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                     }}
                   >
                     Settings
-                  </button>
-                  <button
-                    type="button"
-                    className="dropdown-item danger"
-                    onMouseDown={doSignOut}
-                  >
-                    Sign Out
                   </button>
                 </div>
               )}
