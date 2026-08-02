@@ -28,6 +28,7 @@ export function GuestsPage() {
     guest: string;
     status: string;
     totalPkr?: number;
+    amountPaidPkr?: number;
   }>;
 
   const enriched = useMemo(() => {
@@ -36,9 +37,10 @@ export function GuestsPage() {
         (b) => b.guestEmail === g.email || b.guest === g.name,
       );
       const totalBookings = theirs.length;
+      // Collected payments only — matches dashboard/analytics revenue.
       const totalSpent = theirs
-        .filter((b) => b.status !== "cancelled")
-        .reduce((s, b) => s + Number(b.totalPkr || 0), 0);
+        .filter((b) => b.status !== "cancelled" && b.status !== "pending_hold")
+        .reduce((s, b) => s + Number(b.amountPaidPkr || 0), 0);
       return { ...g, totalBookings, totalSpent };
     });
   }, [data, bookings]);

@@ -40,6 +40,7 @@ type Booking = {
   checkIn: string;
   checkOut: string;
   totalPkr?: number;
+  amountPaidPkr?: number;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -86,9 +87,13 @@ export function AnalyticsPage() {
     [bookings, start, end],
   );
 
-  const active = filtered.filter((b) => b.status !== "cancelled");
+  const active = filtered.filter(
+    (b) => b.status !== "cancelled" && b.status !== "pending_hold",
+  );
 
-  const totalRevenue = active.reduce((s, b) => s + Number(b.totalPkr || 0), 0);
+  // Collected money (amount paid), not gross booking total.
+  const collected = (b: Booking) => Number(b.amountPaidPkr || 0);
+  const totalRevenue = active.reduce((s, b) => s + collected(b), 0);
   const totalBookings = filtered.length;
   const avgBookingValue = active.length ? Math.round(totalRevenue / active.length) : 0;
   const totalNights = active.reduce((s, b) => s + nights(b.checkIn, b.checkOut), 0);
@@ -113,7 +118,7 @@ export function AnalyticsPage() {
     const byMonth = new Map<string, number>();
     active.forEach((b) => {
       const m = b.checkIn.slice(0, 7);
-      byMonth.set(m, (byMonth.get(m) || 0) + Number(b.totalPkr || 0));
+      byMonth.set(m, (byMonth.get(m) || 0) + collected(b));
     });
     return [...byMonth.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
@@ -125,7 +130,7 @@ export function AnalyticsPage() {
 
   const revenueBySource = useMemo(() => {
     const bySrc = new Map<string, number>();
-    active.forEach((b) => bySrc.set(b.source, (bySrc.get(b.source) || 0) + Number(b.totalPkr || 0)));
+    active.forEach((b) => bySrc.set(b.source, (bySrc.get(b.source) || 0) + collected(b)));
     return [...bySrc.entries()].map(([k, v]) => ({
       key: k,
       name: SOURCE_LABEL[k] || k,
@@ -147,7 +152,7 @@ export function AnalyticsPage() {
 
   const topRooms = useMemo(() => {
     const byRoom = new Map<string, number>();
-    active.forEach((b) => byRoom.set(b.room, (byRoom.get(b.room) || 0) + Number(b.totalPkr || 0)));
+    active.forEach((b) => byRoom.set(b.room, (byRoom.get(b.room) || 0) + collected(b)));
     return [...byRoom.entries()].sort(([, a], [, b]) => b - a).map(([room, value]) => ({ room, value }));
   }, [active]);
 
