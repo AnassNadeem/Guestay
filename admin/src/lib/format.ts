@@ -40,7 +40,8 @@ export function statusMeta(map: Record<string, StatusMeta>, status: string): Sta
   return map[status] || { label: humanize(status), bg: "#EAECE4", fg: "#3B4430" };
 }
 
-export function humanize(value: string): string {
+export function humanize(value: string | null | undefined): string {
+  if (!value) return "—";
   return value
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());

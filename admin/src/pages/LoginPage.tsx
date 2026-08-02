@@ -3,8 +3,8 @@ import { useState } from "react";
 
 export function LoginPage() {
   const { mutate: login, isLoading } = useLogin();
-  const [email, setEmail] = useState("owner@guestay.test");
-  const [password, setPassword] = useState("OwnerDemo#2026");
+  const [email, setEmail] = useState("hello@guestay.pk");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   return (
@@ -74,8 +74,7 @@ export function LoginPage() {
           {isLoading ? "Signing in…" : "Sign in"}
         </button>
         <p style={{ fontSize: 12, color: "#6b6b60", marginTop: 12 }}>
-          Dev seeds: owner@guestay.test / OwnerDemo#2026 · manager@guestay.test /
-          ManagerDemo#2026
+          Use your Guestay staff account (owner or manager role).
         </p>
       </form>
     </div>
