@@ -1,22 +1,32 @@
-import {
-  getBookingsByReference,
-} from "@/lib/bookings/confirm";
+import { getBookingsByReference } from "@/lib/bookings/confirm";
+import { getLocalBookingByTracker } from "@/lib/bookings/local-store";
 import { isBookingSmtpConfigured } from "@/lib/mail/booking";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateLabel } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { PaymentProcessing } from "./PaymentProcessing";
 
 type Props = {
   searchParams: {
     ref?: string;
     scenario?: string;
+    tracker?: string;
   };
 };
 
 export const metadata: Metadata = {
   title: "Booking confirmed",
 };
+
+export const dynamic = "force-dynamic";
+
+const TERMINAL = new Set([
+  "paid",
+  "partially_paid",
+  "confirmed_no_advance",
+  "cancelled",
+]);
 
 function scenarioMessage(
   scenario: string | undefined,
@@ -45,11 +55,26 @@ function scenarioMessage(
   return null;
 }
 
-export default function BookingConfirmedPage({ searchParams }: Props) {
+export default async function BookingConfirmedPage({ searchParams }: Props) {
+  const tracker = searchParams.tracker?.trim();
   const ref = searchParams.ref?.trim();
+
+  // Waiting for webhook finalization after Safepay return.
+  if (tracker && !ref) {
+    const booking = await getLocalBookingByTracker(tracker);
+    if (booking && TERMINAL.has(booking.status)) {
+      const qs = new URLSearchParams({ ref: booking.reference });
+      if (booking.accountLinkScenario) {
+        qs.set("scenario", booking.accountLinkScenario);
+      }
+      redirect(`/booking-confirmed?${qs.toString()}`);
+    }
+    return <PaymentProcessing tracker={tracker} />;
+  }
+
   if (!ref) notFound();
 
-  const bookings = getBookingsByReference(ref);
+  const bookings = await getBookingsByReference(ref);
   if (bookings.length === 0) notFound();
 
   const primary = bookings[0]!;
@@ -60,8 +85,10 @@ export default function BookingConfirmedPage({ searchParams }: Props) {
 
   const amountPaid = bookings.reduce((s, b) => s + b.amountPaidPkr, 0);
   const amountDue = bookings.reduce((s, b) => s + b.amountDuePkr, 0);
+  const paidAt =
+    bookings.map((b) => b.paidAt).find(Boolean) ||
+    (amountPaid > 0 ? primary.createdAt : undefined);
 
-  // Guest checkout: no My Account / manage CTA — they are not signed in
   const showMyBookings = scenario === "logged_in";
   const showSignIn = scenario === "existing_claimed";
 
@@ -87,7 +114,9 @@ export default function BookingConfirmedPage({ searchParams }: Props) {
                 <p className="font-medium text-ink">{b.roomName}</p>
                 <p className="mt-1 text-sm text-ink-muted">
                   {b.checkIn} → {b.checkOut}
-                  {b.guestCount ? ` · ${b.guestCount} guest${b.guestCount === 1 ? "" : "s"}` : ""}
+                  {b.guestCount
+                    ? ` · ${b.guestCount} guest${b.guestCount === 1 ? "" : "s"}`
+                    : ""}
                 </p>
               </li>
             ))}
@@ -103,6 +132,12 @@ export default function BookingConfirmedPage({ searchParams }: Props) {
             <dt className="text-ink-muted">Amount paid</dt>
             <dd className="font-mono text-ink">{formatCurrency(amountPaid)}</dd>
           </div>
+          {paidAt && amountPaid > 0 && (
+            <div className="flex justify-between gap-4">
+              <dt className="text-ink-muted">Paid on</dt>
+              <dd className="font-mono text-ink">{formatDateLabel(paidAt)}</dd>
+            </div>
+          )}
           <div className="flex justify-between gap-4">
             <dt className="text-ink-muted">Still due</dt>
             <dd className="font-mono text-ink">{formatCurrency(amountDue)}</dd>
