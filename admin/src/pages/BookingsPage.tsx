@@ -19,6 +19,7 @@ type Booking = {
   source: string;
   status: string;
   paymentStatus?: string;
+  paidAt?: string;
   totalPkr?: number;
 };
 
@@ -53,7 +54,8 @@ export function BookingsPage() {
   }, [data, q, status, room, source, payment, from, to]);
 
   function exportCsv() {
-    const header = "reference,guest,room,checkIn,checkOut,source,status,paymentStatus,totalPkr\n";
+    const header =
+      "reference,guest,room,checkIn,checkOut,source,status,paymentStatus,paidAt,totalPkr\n";
     const body = rows
       .map((r) =>
         [
@@ -65,6 +67,7 @@ export function BookingsPage() {
           SOURCE_LABEL[r.source] || r.source,
           statusMeta(BOOKING_STATUS, r.status).label,
           humanize(r.paymentStatus || ""),
+          r.paidAt ? r.paidAt.slice(0, 10) : "",
           r.totalPkr ?? 0,
         ].join(","),
       )
@@ -75,7 +78,7 @@ export function BookingsPage() {
 
   function exportPdf() {
     const tableHtml = `<table><thead><tr>
-      <th>Ref</th><th>Guest</th><th>Room</th><th>Dates</th><th>Source</th><th>Status</th><th>Payment</th><th>Total</th>
+      <th>Ref</th><th>Guest</th><th>Room</th><th>Dates</th><th>Source</th><th>Status</th><th>Payment</th><th>Paid on</th><th>Total</th>
       </tr></thead><tbody>${rows
         .map(
           (r) =>
@@ -83,7 +86,7 @@ export function BookingsPage() {
               SOURCE_LABEL[r.source] || r.source
             }</td><td>${statusMeta(BOOKING_STATUS, r.status).label}</td><td>${humanize(
               r.paymentStatus || "",
-            )}</td><td>Rs ${(r.totalPkr ?? 0).toLocaleString()}</td></tr>`,
+            )}</td><td>${r.paidAt ? r.paidAt.slice(0, 10) : "—"}</td><td>Rs ${(r.totalPkr ?? 0).toLocaleString()}</td></tr>`,
         )
         .join("")}</tbody></table>`;
     exportPrintable("Guestay Bookings", tableHtml);
@@ -170,6 +173,7 @@ export function BookingsPage() {
               <th>Source</th>
               <th>Status</th>
               <th>Payment</th>
+              <th>Paid on</th>
             </tr>
           </thead>
           <tbody>
@@ -190,12 +194,13 @@ export function BookingsPage() {
                     </span>
                   </td>
                   <td>{humanize(r.paymentStatus || "—")}</td>
+                  <td>{r.paidAt ? r.paidAt.slice(0, 10) : "—"}</td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ color: "#9a9a8c", padding: "1.5rem 0.5rem" }}>
+                <td colSpan={8} style={{ color: "#9a9a8c", padding: "1.5rem 0.5rem" }}>
                   No bookings match the current filters.
                 </td>
               </tr>
