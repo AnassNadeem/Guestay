@@ -1,8 +1,4 @@
-import {
-  getLocalBooking,
-  listLocalBookings,
-  updateLocalBooking,
-} from "@/lib/bookings/local-store";
+import { getLocalBooking, updateLocalBooking } from "@/lib/bookings/local-store";
 import { createServiceSupabase, hasSupabase } from "@/lib/supabase/client";
 import { NextResponse } from "next/server";
 
@@ -26,37 +22,39 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Owner only" }, { status: 403 });
   }
 
-  const status =
-    decision === "deny" ? "denied" : "approved_processing";
+  if (!hasSupabase()) {
+    return NextResponse.json(
+      { error: "Supabase is not configured" },
+      { status: 503 },
+    );
+  }
 
-  if (hasSupabase() && ticketId) {
-    try {
-      const sb = createServiceSupabase();
-      await sb
-        .from("refund_requests")
-        .update({
-          status: decision === "deny" ? "denied" : "approved",
-          owner_note: ownerNote || null,
-          decided_at: new Date().toISOString(),
-        })
-        .eq("id", ticketId);
+  const status = decision === "deny" ? "denied" : "approved_processing";
+  const sb = createServiceSupabase();
 
-      await sb.from("audit_log").insert({
-        action: decision === "deny" ? "refund_denied" : "refund_approved",
-        table_name: "refund_requests",
-        row_id: ticketId,
-        after: { bookingId, amountPkr, ownerNote, status },
-      });
-    } catch {
-      /* local fallback below */
-    }
+  if (ticketId) {
+    await sb
+      .from("refund_requests")
+      .update({
+        status: decision === "deny" ? "denied" : "approved_processing",
+        owner_note: ownerNote || null,
+        decided_at: new Date().toISOString(),
+      })
+      .eq("id", ticketId);
+
+    await sb.from("audit_log").insert({
+      action: decision === "deny" ? "refund_denied" : "refund_approved",
+      table_name: "refund_requests",
+      row_id: ticketId,
+      after: { bookingId, amountPkr, ownerNote, status },
+    });
   }
 
   if (decision === "deny") {
     console.info("[audit] refund_denied", { ticketId, ownerNote });
     const emailUrl = process.env.EMAIL_WORKER_URL;
     if (emailUrl && bookingId) {
-      const b = getLocalBooking(bookingId);
+      const b = await getLocalBooking(bookingId);
       if (b?.guestEmail) {
         void fetch(emailUrl, {
           method: "POST",
@@ -76,11 +74,10 @@ export async function POST(req: Request) {
     });
   }
 
-  // Soft-update local booking paid amount for demo store only
   if (bookingId) {
-    const b = getLocalBooking(bookingId);
+    const b = await getLocalBooking(bookingId);
     if (b) {
-      updateLocalBooking(b.id, {
+      await updateLocalBooking(b.id, {
         amountPaidPkr: Math.max(0, b.amountPaidPkr - (amountPkr || 0)),
       });
     }
@@ -91,13 +88,11 @@ export async function POST(req: Request) {
     bookingId,
     amountPkr,
     ownerNote,
-    bookings: listLocalBookings().length,
   });
 
-  // Notify guest — processing email; actual money moved manually in Safepay
   const emailUrl = process.env.EMAIL_WORKER_URL;
   if (emailUrl && bookingId) {
-    const b = getLocalBooking(bookingId);
+    const b = await getLocalBooking(bookingId);
     if (b?.guestEmail) {
       void fetch(emailUrl, {
         method: "POST",
