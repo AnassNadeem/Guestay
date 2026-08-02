@@ -1,14 +1,48 @@
 import { useList } from "@refinedev/core";
 import { Link } from "react-router-dom";
+import { useMemo } from "react";
 import { useRole } from "../hooks/useRole";
 import { useRevenueVisibility } from "../hooks/useRevenueVisibility";
 import { statusMeta, BOOKING_STATUS, isToday } from "../lib/format";
 import { EyeIcon, EyeOffIcon } from "../components/icons";
 
+/** Booked room-nights overlapping the current calendar month ÷ (active rooms × days). */
+function monthOccupancyPct(
+  bookings: Array<{ checkIn: string; checkOut: string; status: string }>,
+  activeRoomCount: number,
+): number {
+  if (activeRoomCount <= 0) return 0;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const monthStart = new Date(y, m, 1);
+  const monthEnd = new Date(y, m + 1, 0);
+  const daysInMonth = monthEnd.getDate();
+  const capacity = activeRoomCount * daysInMonth;
+  if (capacity <= 0) return 0;
+
+  let bookedNights = 0;
+  for (const b of bookings) {
+    if (b.status === "cancelled" || b.status === "pending_hold" || b.status === "expired_hold") {
+      continue;
+    }
+    const start = new Date(`${b.checkIn}T00:00:00`);
+    const end = new Date(`${b.checkOut}T00:00:00`);
+    // Nights are [checkIn, checkOut)
+    const overlapStart = start > monthStart ? start : monthStart;
+    const overlapEnd = end < new Date(y, m + 1, 1) ? end : new Date(y, m + 1, 1);
+    const ms = overlapEnd.getTime() - overlapStart.getTime();
+    if (ms > 0) bookedNights += Math.round(ms / 86_400_000);
+  }
+
+  return Math.min(100, Math.round((bookedNights / capacity) * 100));
+}
+
 export function DashboardPage() {
   const { data: bookings } = useList({ resource: "bookings" });
   const { data: refunds } = useList({ resource: "refunds" });
   const { data: ota } = useList({ resource: "ota" });
+  const { data: rooms } = useList({ resource: "rooms" });
   const { canSeeRevenue } = useRole();
   const revenue = useRevenueVisibility();
 
@@ -21,17 +55,32 @@ export function DashboardPage() {
     checkIn: string;
     checkOut: string;
     totalPkr: number;
+    amountPaidPkr?: number;
   }>;
 
-  const total = rows.reduce((s, b) => s + Number(b.totalPkr || 0), 0);
+  // Collected money only — matches Safepay succeeded charges / payments.amount_pkr.
+  // Filters out cancelled & holds so smoke/false-paid rows never inflate the KPI.
+  const total = rows
+    .filter((b) => b.status !== "cancelled" && b.status !== "pending_hold" && b.status !== "expired_hold")
+    .reduce((s, b) => s + Number(b.amountPaidPkr || 0), 0);
   const checkInsToday = rows.filter((b) => isToday(b.checkIn) && b.status !== "cancelled").length;
   const checkOutsToday = rows.filter((b) => isToday(b.checkOut) && b.status !== "cancelled").length;
   const pendingRefunds = (refunds?.data || []).filter(
     (r) => (r as { status: string }).status === "pending",
   ).length;
 
+  const activeRooms = ((rooms?.data || []) as Array<{ status?: string }>).filter(
+    (r) => !r.status || r.status === "active",
+  ).length;
+
+  const occupancyPct = useMemo(
+    () => monthOccupancyPct(rows, activeRooms),
+    [rows, activeRooms],
+  );
+
   const otaRows = (ota?.data || []) as Array<{ status: string }>;
-  const otaHealthy = otaRows.every((o) => o.status === "ok");
+  const otaConnected = otaRows.length > 0;
+  const otaHealthy = otaConnected && otaRows.every((o) => o.status === "ok");
   const otaStale = otaRows.filter((o) => o.status !== "ok").length;
 
   return (
@@ -72,8 +121,8 @@ export function DashboardPage() {
           <strong>{pendingRefunds}</strong>
         </div>
         <div className="kpi">
-          <span>Occupancy</span>
-          <strong>72%</strong>
+          <span>Occupancy (this month)</span>
+          <strong>{occupancyPct}%</strong>
         </div>
       </div>
 
@@ -82,20 +131,24 @@ export function DashboardPage() {
           <div>
             <h3 style={{ margin: 0, color: "var(--olive)" }}>OTA Sync Health</h3>
             <p style={{ margin: "4px 0 0", color: "#6b6b60", fontSize: 14 }}>
-              {otaHealthy
-                ? "All channel feeds are up to date."
-                : `${otaStale} feed${otaStale > 1 ? "s" : ""} need attention. View OTA Sync →`}
+              {!otaConnected
+                ? "OTA sync not yet connected. Full channel sync is still deferred."
+                : otaHealthy
+                  ? "All channel feeds are up to date."
+                  : `${otaStale} feed${otaStale > 1 ? "s" : ""} need attention. View OTA Sync →`}
             </p>
           </div>
           <span
             className="badge"
             style={
-              otaHealthy
-                ? { background: "#E4F3E8", color: "#1E6B3A" }
-                : { background: "#FBE4E4", color: "#B42318" }
+              !otaConnected
+                ? { background: "#EAECE4", color: "#3B4430" }
+                : otaHealthy
+                  ? { background: "#E4F3E8", color: "#1E6B3A" }
+                  : { background: "#FBE4E4", color: "#B42318" }
             }
           >
-            {otaHealthy ? "Healthy" : "Attention needed"}
+            {!otaConnected ? "Not connected" : otaHealthy ? "Healthy" : "Attention needed"}
           </span>
         </div>
       </Link>
