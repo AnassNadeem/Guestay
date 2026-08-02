@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/Badge";
 import {
   getAmenitiesByIds,
   getRoomBySlug,
-  getRooms,
   getSiteContact,
 } from "@/lib/mock";
 import { formatCurrency } from "@/lib/utils";
@@ -12,12 +11,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-type Props = { params: { slug: string } };
+export const dynamic = "force-dynamic";
 
-export async function generateStaticParams() {
-  const rooms = await getRooms();
-  return rooms.map((r) => ({ slug: r.slug }));
-}
+type Props = { params: { slug: string } };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const room = await getRoomBySlug(params.slug);
@@ -150,6 +146,14 @@ export default async function RoomDetailPage({ params }: Props) {
 
           <div>
             <BookingQuoteCard room={room} contact={contact} />
+            <p className="mt-4 text-center text-sm text-ink-muted">
+              <Link
+                href="/request-quote"
+                className="font-medium text-olive underline-offset-4 hover:underline"
+              >
+                Staying long-term? Get a custom quote
+              </Link>
+            </p>
           </div>
         </div>
       </div>

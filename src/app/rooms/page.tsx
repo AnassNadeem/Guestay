@@ -3,6 +3,8 @@ import { getRooms } from "@/lib/mock";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Rooms",
   description:

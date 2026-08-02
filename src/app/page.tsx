@@ -6,6 +6,8 @@ import { PromoStrip } from "@/components/home/PromoStrip";
 import { RoomsPreview } from "@/components/home/RoomsPreview";
 import { getRooms, getSiteContact } from "@/lib/mock";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const [contact, allRooms] = await Promise.all([
     getSiteContact(),
