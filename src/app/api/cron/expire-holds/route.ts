@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const localCount = expireLocalHolds();
+  const localCount = await expireLocalHolds();
 
   return NextResponse.json({
     expiredLocal: localCount,

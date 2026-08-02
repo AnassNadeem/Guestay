@@ -7,6 +7,7 @@ import {
   createLocalMultiHold,
   getLocalBooking,
   updateLocalBooking,
+  upsertPaymentForBooking,
 } from "@/lib/bookings/local-store";
 import { checkLinesAvailability } from "@/lib/bookings/availability";
 import { getPaymentGateway } from "@/lib/payments/gateway";
@@ -19,7 +20,6 @@ type Line = {
   checkIn: string;
   checkOut: string;
   guests: number;
-  /** Checkout hold already locking this line — must not count against us */
   holdBookingId?: string;
 };
 
@@ -61,7 +61,6 @@ export async function POST(req: Request) {
     const site = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
     const sessionUserId = await sessionUserIdFromRequest(req);
 
-    // Multi-room path
     if (lines && lines.length > 0) {
       const availability = await checkLinesAvailability(
         lines.map((l) => ({
@@ -126,13 +125,19 @@ export async function POST(req: Request) {
       });
 
       for (const b of order.bookings) {
-        updateLocalBooking(b.id, {
+        await updateLocalBooking(b.id, {
           gatewayTracker: payment.tracker,
           paymentKind: payOption === "half" ? "half" : "full",
           pendingSessionUserId: sessionUserId || undefined,
-          notes: preferredPaymentMethod
-            ? `order:${order.orderId}|pay:${preferredPaymentMethod}`
-            : `order:${order.orderId}`,
+        });
+        await upsertPaymentForBooking({
+          bookingId: b.id,
+          orderId: order.orderId,
+          amountPkr: Math.round(amount / order.bookings.length),
+          tracker: payment.tracker,
+          kind: payOption === "half" ? "deposit" : "full",
+          status: "pending",
+          preferredMethod: preferredPaymentMethod || null,
         });
       }
 
@@ -170,17 +175,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // Reuse the checkout hold when present — don't create a second lock
     let booking;
     let quote;
     if (holdBookingId) {
-      const existing = getLocalBooking(holdBookingId);
+      const existing = await getLocalBooking(holdBookingId);
       if (existing && existing.status === "pending_hold") {
-        booking = updateLocalBooking(holdBookingId, {
+        booking = (await updateLocalBooking(holdBookingId, {
           guestName,
           guestEmail,
           guestPhone,
-        })!;
+        }))!;
         quote = {
           halfPaymentPkr: Math.ceil(booking.subtotalPkr / 2),
           fullPaymentPkr: booking.subtotalPkr,
@@ -237,13 +241,18 @@ export async function POST(req: Request) {
       cancelUrl: `${site}/checkout?room=${roomSlug}&mode=${mode}&checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests}`,
     });
 
-    updateLocalBooking(booking.id, {
+    await updateLocalBooking(booking.id, {
       gatewayTracker: payment.tracker,
       paymentKind: payOption === "half" ? "half" : "full",
       pendingSessionUserId: sessionUserId || undefined,
-      notes: preferredPaymentMethod
-        ? `pay:${preferredPaymentMethod}`
-        : booking.notes,
+    });
+    await upsertPaymentForBooking({
+      bookingId: booking.id,
+      amountPkr: amount,
+      tracker: payment.tracker,
+      kind: payOption === "half" ? "deposit" : "full",
+      status: "pending",
+      preferredMethod: preferredPaymentMethod || null,
     });
 
     return NextResponse.json({
