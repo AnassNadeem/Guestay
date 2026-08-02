@@ -16,8 +16,8 @@ export const metadata: Metadata = {
  * Legacy confirmation URL — redirects to /booking-confirmed when the stay
  * is finalized; otherwise shows hold state (reference still HOLD-…).
  */
-export default function BookingConfirmationPage({ params }: Props) {
-  const booking = getLocalBooking(params.reference);
+export default async function BookingConfirmationPage({ params }: Props) {
+  const booking = await getLocalBooking(params.reference);
   if (!booking) notFound();
 
   if (
@@ -32,7 +32,7 @@ export default function BookingConfirmationPage({ params }: Props) {
     );
   }
 
-  const rooms = getBookingsByReference(booking.reference);
+  const rooms = await getBookingsByReference(booking.reference);
   const list = rooms.length > 0 ? rooms : [booking];
 
   return (

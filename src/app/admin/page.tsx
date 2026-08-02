@@ -18,8 +18,8 @@ const statusTone: Record<string, string> = {
   expired_hold: "bg-stone-100 text-stone-600",
 };
 
-export default function AdminHomePage() {
-  const bookings = listLocalBookings();
+export default async function AdminHomePage() {
+  const bookings = await listLocalBookings();
   const revenueBySource = bookings
     .filter((b) => ["paid", "partially_paid", "completed"].includes(b.status))
     .reduce(

@@ -2,8 +2,8 @@ import { listLocalBookings } from "@/lib/bookings/local-store";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 
-export default function AdminAnalyticsPage() {
-  const bookings = listLocalBookings().filter((b) =>
+export default async function AdminAnalyticsPage() {
+  const bookings = (await listLocalBookings()).filter((b) =>
     ["paid", "partially_paid", "completed"].includes(b.status),
   );
   const bySource = bookings.reduce(

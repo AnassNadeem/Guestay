@@ -12,7 +12,7 @@ const sourceColor: Record<string, string> = {
 export default async function AdminCalendarPage() {
   const [rooms, bookings] = await Promise.all([
     getRooms(),
-    Promise.resolve(listLocalBookings()),
+    listLocalBookings(),
   ]);
   const active = bookings.filter((b) =>
     ["pending_hold", "partially_paid", "paid", "confirmed_no_advance"].includes(

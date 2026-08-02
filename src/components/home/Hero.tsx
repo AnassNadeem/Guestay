@@ -187,10 +187,16 @@ export function Hero() {
         </motion.p>
 
         <motion.div
-          className="mt-10 flex w-full justify-center overflow-visible"
+          className="mt-10 flex w-full flex-col items-center gap-3 overflow-visible"
           {...reveal(0.28)}
         >
           <SearchPill className="w-full max-w-3xl" />
+          <a
+            href="/request-quote"
+            className="text-sm font-medium text-olive underline-offset-4 hover:underline"
+          >
+            Staying long-term? Get a custom quote
+          </a>
         </motion.div>
       </div>
 
