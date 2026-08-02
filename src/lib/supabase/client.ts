@@ -8,6 +8,18 @@ export function hasSupabase() {
   );
 }
 
+/**
+ * Next.js patches global `fetch` and caches GETs by default. supabase-js
+ * uses that fetch for PostgREST, so room/booking reads can stick forever
+ * even with `export const dynamic = "force-dynamic"`. Always bypass.
+ */
+function noStoreFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  return fetch(input, { ...init, cache: "no-store" });
+}
+
 let browserClient: SupabaseClient | null = null;
 
 /**
@@ -25,6 +37,7 @@ export function createBrowserSupabase() {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
+        global: { fetch: noStoreFetch },
         auth: {
           flowType: "pkce",
           detectSessionInUrl: false,
@@ -45,6 +58,7 @@ export function createServiceSupabase() {
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   return createClient(url, key, {
+    global: { fetch: noStoreFetch },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
