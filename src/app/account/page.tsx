@@ -3,7 +3,7 @@
 import { AccountSettings } from "@/components/account/AccountSettings";
 import { Modal } from "@/components/ui/Modal";
 import { createBrowserSupabase, hasSupabase } from "@/lib/supabase/client";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateLabel } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import {
   CreditCard,
@@ -35,6 +35,8 @@ type BookingRow = {
   amountDuePkr: number;
   totalPkr: number;
   guestEmail: string;
+  paidAt?: string;
+  createdAt?: string;
 };
 
 type RefundTicket = {
@@ -77,7 +79,13 @@ function canRequestRefund(b: BookingRow, tickets: RefundTicket[]) {
 }
 
 function ticketForBooking(b: BookingRow, tickets: RefundTicket[]) {
-  return tickets.find((t) => t.bookingId === b.id);
+  const matches = tickets
+    .filter((t) => t.bookingId === b.id)
+    .sort(
+      (a, b2) =>
+        new Date(b2.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  return matches[0];
 }
 
 function EmptyState({
@@ -112,6 +120,68 @@ function EmptyState({
   );
 }
 
+function refundStatusLabel(status: string) {
+  const s = status.toLowerCase();
+  if (s === "pending") return "Refund Requested";
+  if (s === "approved_processing" || s === "refunded") return "Refund Approved";
+  if (s === "denied") return "Refund Denied";
+  return `Refund ${status.replace(/_/g, " ")}`;
+}
+
+function refundBadgeClass(status: string) {
+  const s = status.toLowerCase();
+  if (s === "pending") return "border-amber-500/30 bg-amber-50 text-amber-900";
+  if (s === "approved_processing" || s === "refunded")
+    return "border-emerald-600/25 bg-emerald-50 text-emerald-900";
+  if (s === "denied") return "border-red-500/25 bg-red-50 text-red-900";
+  return "border-olive/20 bg-cream-100 text-ink-muted";
+}
+
+function RefundStatusBadge({ ticket }: { ticket: RefundTicket }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const label = refundStatusLabel(ticket.status);
+  const detail =
+    ticket.ownerNote?.trim() ||
+    (ticket.status.toLowerCase() === "pending"
+      ? ticket.reason
+      : ticket.reason) ||
+    "No additional note.";
+
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  return (
+    <div className="relative mt-2" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium tracking-wide ${refundBadgeClass(ticket.status)}`}
+        aria-expanded={open}
+      >
+        {label}
+      </button>
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+6px)] z-20 w-64 rounded-soft border border-olive/10 bg-white p-3 shadow-lift">
+          <p className="text-xs font-medium text-ink">{label}</p>
+          <p className="mt-1 text-xs leading-relaxed text-ink-muted">{detail}</p>
+          {ticket.ownerNote?.trim() && ticket.reason && (
+            <p className="mt-2 border-t border-olive/10 pt-2 text-[11px] text-ink-muted">
+              Your reason: {ticket.reason}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BookingMenu({
   booking,
   upcoming,
@@ -129,12 +199,7 @@ function BookingMenu({
   const ref = useRef<HTMLDivElement>(null);
   const showManage = upcoming && !isCancelled(booking);
   const showRefund = canRequestRefund(booking, refunds);
-  const ticket = ticketForBooking(booking, refunds);
-  const showTicketStatus =
-    ticket &&
-    !showRefund &&
-    ["paid", "partially_paid"].includes(booking.status);
-  const hasMenu = showManage || showRefund || showTicketStatus;
+  const hasMenu = showManage || showRefund;
 
   useEffect(() => {
     if (!hasMenu) return;
@@ -186,11 +251,6 @@ function BookingMenu({
               Request Refund
             </button>
           )}
-          {showTicketStatus && ticket && (
-            <p className="px-3 py-2 text-xs capitalize text-ink-muted">
-              Refund: {ticket.status.replace(/_/g, " ")}
-            </p>
-          )}
         </div>
       )}
     </div>
@@ -213,6 +273,7 @@ function BookingCard({
   onRefund: () => void;
 }) {
   const rooms = siblings.length > 0 ? siblings : [booking];
+  const ticket = ticketForBooking(booking, refunds);
   return (
     <li className="rounded-card border border-olive/10 bg-white/80 p-4 shadow-soft">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -233,6 +294,7 @@ function BookingCard({
           <p className="mt-2 text-sm capitalize text-olive">
             {booking.status.replace(/_/g, " ")}
           </p>
+          {ticket && <RefundStatusBadge ticket={ticket} />}
         </div>
         <div className="flex items-center gap-1">
           <Link
@@ -272,6 +334,8 @@ function AccountInner() {
   const [editSaving, setEditSaving] = useState(false);
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [refundSaving, setRefundSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [settingsVisited, setSettingsVisited] = useState(false);
 
@@ -286,28 +350,40 @@ function AccountInner() {
           ? createBrowserSupabase().auth.getUser()
           : Promise.resolve({ data: { user: null } } as const);
 
-      const [authResult, res] = await Promise.all([
-        authPromise,
-        fetch("/api/account/bookings"),
-      ]);
-
+      const authResult = await authPromise;
       const userEmail = authResult.data.user?.email ?? null;
       setEmail(userEmail);
 
+      const headers: HeadersInit = {};
+      if (hasSupabase()) {
+        const {
+          data: { session },
+        } = await createBrowserSupabase().auth.getSession();
+        if (session?.access_token) {
+          headers.Authorization = `Bearer ${session.access_token}`;
+        }
+      }
+      if (userEmail) headers["x-guestay-email"] = userEmail;
+
+      const res = await fetch("/api/account/bookings", { headers });
       const data = await res.json();
       const all = (data.bookings || []) as BookingRow[];
-      const mine = userEmail
-        ? all.filter(
-            (b) => b.guestEmail.toLowerCase() === userEmail.toLowerCase(),
-          )
-        : all;
-      setBookings(mine);
+      setBookings(all);
 
-      try {
-        const raw = localStorage.getItem("guestay_refunds_v1");
-        if (raw) setRefunds(JSON.parse(raw) as RefundTicket[]);
-      } catch {
-        /* ignore */
+      if (headers.Authorization) {
+        try {
+          const rr = await fetch("/api/refunds/request", { headers });
+          if (rr.ok) {
+            const body = (await rr.json()) as { tickets?: RefundTicket[] };
+            setRefunds(body.tickets || []);
+          } else {
+            setRefunds([]);
+          }
+        } catch {
+          setRefunds([]);
+        }
+      } else {
+        setRefunds([]);
       }
     }
     void load();
@@ -398,33 +474,50 @@ function AccountInner() {
     }
   }
 
-  function submitRefund() {
+  async function submitRefund() {
     if (!refundBooking || !reason.trim()) return;
-    const ticket: RefundTicket = {
-      id: `rf_${Date.now()}`,
-      bookingId: refundBooking.id,
-      amountPkr: refundBooking.amountPaidPkr,
-      reason,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-    const next = [ticket, ...refunds];
-    setRefunds(next);
-    localStorage.setItem("guestay_refunds_v1", JSON.stringify(next));
-    void fetch("/api/refunds/request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        bookingId: refundBooking.id,
-        amountPkr: refundBooking.amountPaidPkr,
-        reason,
-        notes,
-      }),
-    });
-    setRefundOpen(false);
-    setReason("");
-    setNotes("");
-    setMessage("Refund request submitted — Pending Review");
+    setRefundError(null);
+    setRefundSaving(true);
+    try {
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (hasSupabase()) {
+        const {
+          data: { session },
+        } = await createBrowserSupabase().auth.getSession();
+        if (session?.access_token) {
+          headers.Authorization = `Bearer ${session.access_token}`;
+        }
+      }
+      const res = await fetch("/api/refunds/request", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          bookingId: refundBooking.id,
+          amountPkr: refundBooking.amountPaidPkr,
+          reason,
+          notes,
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        ticket?: RefundTicket;
+      };
+      if (!res.ok || !body.ticket) {
+        setRefundError(body.error || "Could not submit refund request");
+        return;
+      }
+      setRefunds((prev) => [body.ticket!, ...prev.filter((t) => t.id !== body.ticket!.id)]);
+      setRefundOpen(false);
+      setReason("");
+      setNotes("");
+      setMessage("Refund request submitted — Pending Review");
+    } catch (e) {
+      setRefundError(
+        e instanceof Error ? e.message : "Could not submit refund request",
+      );
+    } finally {
+      setRefundSaving(false);
+    }
   }
 
   const fieldClass =
@@ -524,38 +617,48 @@ function AccountInner() {
 
         {tab === "payments" && (
           <>
-            {bookings.length === 0 ? (
-              <EmptyState
-                icon={CreditCard}
-                title="No payments yet"
-                body="Payments for your stays will appear here after you book."
-                ctaHref="/rooms"
-                ctaLabel="Browse Rooms"
-              />
-            ) : (
+            {(() => {
+              const paid = bookings.filter((b) => b.amountPaidPkr > 0);
+              if (paid.length === 0) {
+                return (
+                  <EmptyState
+                    icon={CreditCard}
+                    title="No payments yet"
+                    body="Payments for your stays will appear here after you book."
+                    ctaHref="/rooms"
+                    ctaLabel="Browse Rooms"
+                  />
+                );
+              }
+              return (
               <ul className="mt-8 space-y-3">
-                {bookings.map((b) => (
-                  <li
-                    key={b.id}
-                    className="rounded-card border border-olive/10 bg-white/80 p-4"
-                  >
-                    <p className="font-medium text-ink">{b.roomName}</p>
-                    <p className="mt-1 font-mono text-sm text-ink-muted">
-                      Paid {formatCurrency(b.amountPaidPkr)} · Due{" "}
-                      {formatCurrency(b.amountDuePkr)}
-                    </p>
-                    {b.amountDuePkr > 0 && (
-                      <a
-                        href={`/checkout?room=&balance=${b.reference}`}
-                        className="mt-2 inline-block text-sm font-medium text-olive underline"
+                {paid.map((b) => {
+                    const paidOn =
+                      b.paidAt || b.createdAt
+                        ? formatDateLabel(b.paidAt || b.createdAt!)
+                        : null;
+                    return (
+                      <li
+                        key={b.id}
+                        className="rounded-card border border-olive/10 bg-white/80 p-4"
                       >
-                        Pay now
-                      </a>
-                    )}
-                  </li>
-                ))}
+                        <p className="font-medium text-ink">{b.roomName}</p>
+                        <p className="mt-1 font-mono text-sm text-ink-muted">
+                          Paid {formatCurrency(b.amountPaidPkr)}
+                          {paidOn ? ` · ${paidOn}` : ""}
+                          {b.amountDuePkr > 0
+                            ? ` · Remaining ${formatCurrency(b.amountDuePkr)} (settle on arrival / with staff)`
+                            : ""}
+                        </p>
+                        <p className="mt-1 font-mono text-xs text-ink-muted">
+                          {b.reference}
+                        </p>
+                      </li>
+                    );
+                  })}
               </ul>
-            )}
+              );
+            })()}
           </>
         )}
 
@@ -621,7 +724,12 @@ function AccountInner() {
 
       <Modal
         open={refundOpen}
-        onClose={() => setRefundOpen(false)}
+        onClose={() => {
+          if (!refundSaving) {
+            setRefundOpen(false);
+            setRefundError(null);
+          }
+        }}
         title="Request Refund"
         labelledBy="refund-title"
       >
@@ -648,12 +756,16 @@ function AccountInner() {
             className="mt-1 w-full rounded-soft border border-olive/15 bg-white px-3 py-2"
           />
         </label>
+        {refundError && (
+          <p className="mt-3 text-sm text-destructive">{refundError}</p>
+        )}
         <button
           type="button"
-          onClick={submitRefund}
-          className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-soft bg-olive text-sm font-medium text-cream-50"
+          onClick={() => void submitRefund()}
+          disabled={refundSaving || !reason.trim()}
+          className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-soft bg-olive text-sm font-medium text-cream-50 disabled:opacity-50"
         >
-          Submit request
+          {refundSaving ? "Submitting…" : "Submit request"}
         </button>
       </Modal>
     </div>
