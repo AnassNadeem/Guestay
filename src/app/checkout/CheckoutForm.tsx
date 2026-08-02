@@ -55,8 +55,8 @@ export function CheckoutForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [payOption, setPayOption] = useState<"full" | "half" | "none">("full");
-  const [method] = useState<PayMethod>("card");
+  const [payOption, setPayOption] = useState<"full" | "none">("full");
+  const [method, setMethod] = useState<PayMethod>("card");
   const [tos, setTos] = useState(false);
   const [shakeTos, setShakeTos] = useState(false);
   const [quote, setQuote] = useState<QuotePayload | null>(null);
@@ -379,12 +379,10 @@ export function CheckoutForm() {
   const amountNow = useMemo(() => {
     if (lines && multiTotal != null) {
       if (payOption === "none") return 0;
-      if (payOption === "half") return Math.ceil(multiTotal / 2);
       return multiTotal;
     }
     if (!quote) return 0;
     if (payOption === "none") return 0;
-    if (payOption === "half") return quote.halfPaymentPkr;
     return quote.fullPaymentPkr;
   }, [quote, payOption, lines, multiTotal]);
 
@@ -719,42 +717,49 @@ export function CheckoutForm() {
           {!isGroup && (
             <section className="space-y-4">
               <h2 className="font-display text-xl text-ink">Payment</h2>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPayOption("full")}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all hover:scale-[1.02] ${
-                    payOption === "full"
-                      ? "bg-olive text-cream-50"
-                      : "border border-olive/20 text-olive"
-                  }`}
-                >
-                  Pay in full
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPayOption("half")}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all hover:scale-[1.02] ${
-                    payOption === "half"
-                      ? "bg-olive text-cream-50"
-                      : "border border-olive/20 text-olive"
-                  }`}
-                >
-                  Pay 50% deposit now
-                </button>
+              <p className="text-sm text-ink-muted">
+                Pay in full now via Safepay. Preferred method is recorded for
+                your booking; sandbox checkout currently completes on card.
+              </p>
+
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {(
+                  [
+                    ["card", "Card"],
+                    ["jazzcash", "JazzCash"],
+                    ["easypaisa", "Easypaisa"],
+                    ["raast", "Raast"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setMethod(id)}
+                    className={`rounded-soft border px-3 py-3 text-sm font-medium transition-all ${
+                      method === id
+                        ? "border-olive bg-olive text-cream-50"
+                        : "border-olive/20 bg-white text-olive hover:border-olive/40"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
 
               <div className="rounded-soft border border-olive/10 bg-cream-100/60 p-4 text-sm text-ink-muted">
-                <p className="font-medium text-ink">Pay with card (Safepay)</p>
+                <p className="font-medium text-ink">
+                  {method === "card"
+                    ? "Pay with card (Safepay)"
+                    : `Preferred: ${method} — you will continue on Safepay`}
+                </p>
                 <p className="mt-1">
-                  You&apos;ll be redirected to Safepay&apos;s secure page for Visa /
-                  Mastercard (Google Pay may also appear). Card details never
-                  touch our servers.
+                  You&apos;ll be redirected to Safepay&apos;s secure page. Card
+                  details never touch our servers.
                 </p>
                 <p className="mt-2 text-xs text-ink-soft">
-                  JazzCash, Easypaisa, and Raast are not enabled on this sandbox
-                  account yet — those show after Safepay activates them on your
-                  live merchant account.
+                  Sandbox merchant accounts often expose card only. JazzCash,
+                  Easypaisa, and Raast may appear after Safepay activates them —
+                  your preference is still saved on the booking.
                 </p>
               </div>
 
