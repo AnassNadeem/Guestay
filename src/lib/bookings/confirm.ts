@@ -1,7 +1,10 @@
 import {
+  attachPaidAt,
   getLocalBooking,
+  listBookingsByOrderId,
   listLocalBookings,
   updateLocalBooking,
+  upsertPaymentForBooking,
   type LocalBooking,
 } from "@/lib/bookings/local-store";
 import {
@@ -30,42 +33,31 @@ export type FinalizeResult = {
 };
 
 /** Bookings that share an order (multi-room), or just the one booking. */
-export function getOrderBookings(booking: LocalBooking): LocalBooking[] {
+export async function getOrderBookings(
+  booking: LocalBooking,
+): Promise<LocalBooking[]> {
   if (booking.orderId) {
-    const siblings = listLocalBookings().filter(
-      (b) => b.orderId === booking.orderId,
-    );
-    if (siblings.length > 0) return siblings;
-  }
-  const orderMatch = booking.notes?.match(/order:([a-f0-9]+)/i);
-  if (orderMatch) {
-    const orderId = orderMatch[1];
-    const siblings = listLocalBookings().filter(
-      (b) =>
-        b.orderId === orderId ||
-        b.notes?.includes(`order:${orderId}`),
-    );
+    const siblings = await listBookingsByOrderId(booking.orderId);
     if (siblings.length > 0) return siblings;
   }
   return [booking];
 }
 
-export function getBookingsByReference(reference: string): LocalBooking[] {
-  return listLocalBookings().filter(
+export async function getBookingsByReference(
+  reference: string,
+): Promise<LocalBooking[]> {
+  const all = await listLocalBookings();
+  const matched = all.filter(
     (b) => b.reference === reference || b.orderReference === reference,
   );
+  return attachPaidAt(matched);
 }
 
-/**
- * Claimed = can sign in today (password set, or OAuth, or prior successful login).
- * Unclaimed = auto-created for a past booking; set-password link never completed.
- */
 export function isClaimedAccount(user: User): boolean {
   if (user.user_metadata?.guestay_unclaimed === true) return false;
   if (user.last_sign_in_at) return true;
   const identities = user.identities ?? [];
   if (identities.some((i) => i.provider !== "email")) return true;
-  // Confirmed email identity without our unclaimed flag → treated as claimed
   if (user.email_confirmed_at) return true;
   return false;
 }
@@ -77,7 +69,6 @@ async function resolveAccountLink(opts: {
 }): Promise<{
   scenario: AccountLinkScenario;
   guestId: string | null;
-  /** Plain set-password URL for new/unclaimed — never a magic link. */
   setPasswordUrl: string | null;
 }> {
   const email = opts.guestEmail.trim().toLowerCase();
@@ -97,7 +88,6 @@ async function resolveAccountLink(opts: {
 
     const sb = createServiceSupabase();
 
-    // Scenario 1: logged in at checkout — attach to session account
     if (opts.sessionUserId) {
       const { data: sessionUserData } = await sb.auth.admin.getUserById(
         opts.sessionUserId,
@@ -125,7 +115,6 @@ async function resolveAccountLink(opts: {
       };
     }
 
-    // Scenario 3: no account OR unclaimed — create / reuse + 24h set-password token
     const pwToken = createSetPasswordToken();
     let guestId = existing?.id ?? null;
 
@@ -194,23 +183,20 @@ function sumDue(bookings: LocalBooking[]) {
 
 /**
  * Mint guest-facing reference, link account, send confirmation + internal mail.
- * Idempotent: if already finalized with a GST reference, returns without re-emailing.
- * Email failures never throw.
+ * Writes to Supabase as source of truth. Idempotent on GST + terminal status.
  */
 export async function finalizeSuccessfulBooking(opts: {
-  /** Any booking id in the order (siblings resolved automatically). */
   bookingId: string;
   status: "paid" | "partially_paid" | "confirmed_no_advance";
-  /** Per-booking paid amounts; if omitted, derived from paymentKind + subtotal. */
   amounts?: Array<{ id: string; amountPaidPkr: number; amountDuePkr: number }>;
   sessionUserId?: string | null;
 }): Promise<FinalizeResult | null> {
-  const seed = getLocalBooking(opts.bookingId);
+  const seed = await getLocalBooking(opts.bookingId);
   if (!seed) return null;
 
-  const siblings = getOrderBookings(seed);
+  const siblings = await getOrderBookings(seed);
 
-  // Idempotent re-entry (return page + webhook)
+  // Fully done (status + mail) — safe no-op for webhook retries.
   if (
     siblings.every(
       (b) =>
@@ -231,7 +217,6 @@ export async function finalizeSuccessfulBooking(opts: {
     siblings.find((b) => isFinalBookingReference(b.reference))?.reference ||
     generateBookingReference();
 
-  // Apply payment amounts
   for (const b of siblings) {
     const override = opts.amounts?.find((a) => a.id === b.id);
     let amountPaidPkr = b.amountPaidPkr;
@@ -251,7 +236,7 @@ export async function finalizeSuccessfulBooking(opts: {
       amountDuePkr = 0;
     }
 
-    updateLocalBooking(b.id, {
+    await updateLocalBooking(b.id, {
       reference,
       orderReference: reference,
       status: opts.status,
@@ -265,6 +250,22 @@ export async function finalizeSuccessfulBooking(opts: {
             ? "half"
             : b.paymentKind || "full",
     });
+
+    if (
+      amountPaidPkr > 0 &&
+      b.gatewayTracker &&
+      opts.status !== "confirmed_no_advance"
+    ) {
+      await upsertPaymentForBooking({
+        bookingId: b.id,
+        orderId: b.orderId,
+        amountPkr: amountPaidPkr,
+        tracker: b.gatewayTracker,
+        kind: opts.status === "partially_paid" ? "deposit" : "full",
+        status: "succeeded",
+        paidAt: new Date().toISOString(),
+      });
+    }
   }
 
   const guest = siblings[0]!;
@@ -275,16 +276,22 @@ export async function finalizeSuccessfulBooking(opts: {
   });
 
   const notifiedAt = new Date().toISOString();
+  const updated: LocalBooking[] = [];
   for (const b of siblings) {
-    updateLocalBooking(b.id, {
+    const next = await updateLocalBooking(b.id, {
       guestId: link.guestId || undefined,
       accountLinkScenario: link.scenario,
       confirmationNotifiedAt: notifiedAt,
     });
+    if (next) updated.push(next);
   }
 
-  const updated = siblings.map((b) => getLocalBooking(b.id)!);
-  const rooms = updated.map((b) => ({
+  const withPaid = await attachPaidAt(updated);
+  const paidAt =
+    withPaid.map((b) => b.paidAt).find(Boolean) ||
+    (sumPaid(withPaid) > 0 ? notifiedAt : undefined);
+
+  const rooms = withPaid.map((b) => ({
     roomName: b.roomName,
     checkIn: b.checkIn,
     checkOut: b.checkOut,
@@ -292,16 +299,16 @@ export async function finalizeSuccessfulBooking(opts: {
     bookingMode: b.bookingMode,
   }));
 
-  // Fire-and-forget emails — payment success is source of truth
   void sendBookingConfirmationEmail({
     to: guest.guestEmail,
     guestName: guest.guestName,
     reference,
     rooms,
-    amountPaidPkr: sumPaid(updated),
-    amountDuePkr: sumDue(updated),
+    amountPaidPkr: sumPaid(withPaid),
+    amountDuePkr: sumDue(withPaid),
     status: opts.status,
     scenario: link.scenario,
+    paidAt,
   }).then((r) => {
     if (!r.ok) {
       console.error("[finalize] confirmation email failed", r.error, {
@@ -330,9 +337,10 @@ export async function finalizeSuccessfulBooking(opts: {
     guestEmail: guest.guestEmail,
     guestPhone: guest.guestPhone,
     rooms,
-    amountPaidPkr: sumPaid(updated),
-    amountDuePkr: sumDue(updated),
+    amountPaidPkr: sumPaid(withPaid),
+    amountDuePkr: sumDue(withPaid),
     status: opts.status,
+    paidAt,
   }).then((r) => {
     if (!r.ok) {
       console.error("[finalize] internal notify failed", r.error, {
@@ -341,48 +349,33 @@ export async function finalizeSuccessfulBooking(opts: {
     }
   });
 
-  // Best-effort: sync final reference to Supabase if row exists
-  void syncSupabaseConfirmation(updated, link.guestId).catch((err) => {
-    console.error("[finalize] supabase sync failed", err);
-  });
+  // In-app admin notification (bell / Notifications page)
+  try {
+    const { createServiceSupabase, hasSupabase } = await import(
+      "@/lib/supabase/client"
+    );
+    if (hasSupabase()) {
+      const sb = createServiceSupabase();
+      await sb.from("notifications").insert({
+        kind: "new_booking",
+        title: "New booking confirmed",
+        body: `${guest.guestName} · ${reference} · ${opts.status.replace(/_/g, " ")}`,
+        href: "/bookings",
+        meta: { reference, bookingId: opts.bookingId, status: opts.status },
+      });
+    }
+  } catch (e) {
+    console.warn("[finalize] in-app notification skipped", e);
+  }
 
   return {
     reference,
     scenario: link.scenario,
-    bookings: updated,
+    bookings: withPaid,
     alreadyFinalized: false,
   };
 }
 
-async function syncSupabaseConfirmation(
-  bookings: LocalBooking[],
-  guestId: string | null,
-) {
-  const { hasSupabase, createServiceSupabase } = await import(
-    "@/lib/supabase/client"
-  );
-  if (!hasSupabase()) return;
-  const sb = createServiceSupabase();
-  for (const b of bookings) {
-    await sb
-      .from("bookings")
-      .update({
-        reference: b.reference,
-        status: b.status,
-        amount_paid_pkr: b.amountPaidPkr,
-        amount_due_pkr: b.amountDuePkr,
-        hold_expires_at: null,
-        guest_id: guestId,
-        guest_name: b.guestName,
-        guest_email: b.guestEmail,
-        guest_phone: b.guestPhone,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", b.id);
-  }
-}
-
-/** Resolve session user from Authorization: Bearer <jwt>. */
 export async function sessionUserIdFromRequest(
   req: Request,
 ): Promise<string | null> {
