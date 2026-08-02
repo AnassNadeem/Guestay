@@ -1,5 +1,5 @@
 import { listLocalBookings } from "@/lib/bookings/local-store";
-import { getRooms } from "@/lib/mock";
+import { createServiceSupabase, hasSupabase } from "@/lib/supabase/client";
 import { NextResponse } from "next/server";
 
 function toIcsDate(date: string) {
@@ -10,14 +10,27 @@ function toIcsDate(date: string) {
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const token = searchParams.get("token") || searchParams.get("room") || "";
-  const rooms = await getRooms();
+
+  if (!hasSupabase()) {
+    return new NextResponse("Not found", { status: 404 });
+  }
+
+  const sb = createServiceSupabase();
+  let roomQuery = sb
+    .from("rooms")
+    .select("id, slug, name")
+    .eq("status", "active");
+
+  const { data: rooms } = await roomQuery;
   const room =
-    rooms.find((r) => r.id === token || r.slug === token) || rooms[0];
+    (rooms || []).find((r) => r.id === token || r.slug === token) ||
+    (rooms || [])[0];
+
   if (!room) {
     return new NextResponse("Not found", { status: 404 });
   }
 
-  const bookings = listLocalBookings().filter(
+  const bookings = (await listLocalBookings()).filter(
     (b) =>
       b.roomSlug === room.slug &&
       ["pending_hold", "partially_paid", "paid", "confirmed_no_advance"].includes(

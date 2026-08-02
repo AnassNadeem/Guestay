@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     if (!room) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 });
     }
-    const booking = createWalkInBooking({
+    const booking = await createWalkInBooking({
       roomSlug: room.slug,
       roomName: room.name,
       mode: (body.mode || "exclusive") as BookingMode,

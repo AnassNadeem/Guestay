@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateLabel } from "@/lib/utils";
 
 function smtpConfigured() {
   return Boolean(
@@ -165,6 +165,7 @@ export type BookingConfirmationMail = {
   amountDuePkr: number;
   status: string;
   scenario: AccountLinkScenario;
+  paidAt?: string;
 };
 
 const SAFETY_LINE =
@@ -233,6 +234,9 @@ export async function sendBookingConfirmationEmail(
     ...roomLines(mail.rooms),
     "",
     `Amount paid: ${formatCurrency(mail.amountPaidPkr)}`,
+    mail.paidAt && mail.amountPaidPkr > 0
+      ? `Paid on: ${formatDateLabel(mail.paidAt)}`
+      : null,
     `Still due: ${formatCurrency(mail.amountDuePkr)}`,
     `Status: ${mail.status}`,
     "",
@@ -243,7 +247,9 @@ export async function sendBookingConfirmationEmail(
     "",
     "— Guestay",
     "bookings@guestay.pk",
-  ].join("\n");
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 
   return sendWithZoho({
     fromEmail,
@@ -267,6 +273,7 @@ export type InternalBookingNotify = {
   amountPaidPkr: number;
   amountDuePkr: number;
   status: string;
+  paidAt?: string;
 };
 
 /**
@@ -306,10 +313,15 @@ export async function sendInternalBookingNotification(
     ...roomLines(mail.rooms),
     "",
     `Paid: ${formatCurrency(mail.amountPaidPkr)}`,
+    mail.paidAt && mail.amountPaidPkr > 0
+      ? `Paid on: ${formatDateLabel(mail.paidAt)}`
+      : null,
     `Due: ${formatCurrency(mail.amountDuePkr)}`,
     "",
     `View: ${viewUrl}`,
-  ].join("\n");
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
 
   return sendWithZoho({
     fromEmail,
