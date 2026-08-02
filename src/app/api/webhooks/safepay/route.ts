@@ -3,31 +3,59 @@ import {
   getOrderBookings,
 } from "@/lib/bookings/confirm";
 import {
+  getLocalBooking,
   getLocalBookingByTracker,
-  listLocalBookings,
   updateLocalBooking,
 } from "@/lib/bookings/local-store";
+import { verifySafepayWebhookSignature } from "@/lib/payments/safepay-webhook";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { NextResponse } from "next/server";
 
 /**
- * Safepay webhook — verify signature when SAFEPAY_WEBHOOK_SECRET is set,
- * then mark booking paid / partially_paid from tracker.
+ * Safepay webhook — the ONLY path that sets Safepay bookings to paid.
+ * HMAC required (SAFEPAY_WEBHOOK_SECRET), then verifyTracker, then finalize.
+ * Retries are idempotent via finalizeSuccessfulBooking.alreadyFinalized.
+ *
+ * Dashboard setup:
+ * 1. Safepay → Developer → Webhooks → endpoint https://<site>/api/webhooks/safepay
+ * 2. Copy webhook secret into SAFEPAY_WEBHOOK_SECRET
+ * 3. Browser /checkout/return only stamps gateway_tracker and shows processing.
  */
 export async function POST(req: Request) {
   const raw = await req.text();
-  const secret = process.env.SAFEPAY_WEBHOOK_SECRET;
+  const secret = process.env.SAFEPAY_WEBHOOK_SECRET?.trim();
 
-  if (secret) {
-    const sig =
-      req.headers.get("x-sfpy-signature") ||
-      req.headers.get("x-safepay-signature") ||
-      "";
-    if (!sig) {
-      return NextResponse.json({ error: "Missing signature" }, { status: 401 });
-    }
-    // HMAC verification would go here with crypto.createHmac once Safepay
-    // documents the exact header scheme for this merchant account.
+  if (!secret) {
+    console.warn(
+      "[safepay webhook] SAFEPAY_WEBHOOK_SECRET unset — rejecting. Configure webhook in Safepay dashboard; bookings will stay in processing until webhooks are live.",
+    );
+    return NextResponse.json(
+      {
+        error:
+          "Webhook secret not configured. Safepay payments cannot be finalized without a verified webhook.",
+      },
+      { status: 503 },
+    );
+  }
+
+  const sig =
+    req.headers.get("x-sfpy-signature") ||
+    req.headers.get("x-safepay-signature") ||
+    "";
+  const timestamp =
+    req.headers.get("x-sfpy-timestamp") ||
+    req.headers.get("x-safepay-timestamp") ||
+    "";
+
+  const verifiedSig = verifySafepayWebhookSignature({
+    secretBase64: secret,
+    rawBody: raw,
+    signatureHeader: sig,
+    timestampHeader: timestamp,
+  });
+  if (!verifiedSig.ok) {
+    console.warn("[safepay webhook] signature failed", verifiedSig.error);
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   let payload: Record<string, unknown> = {};
@@ -37,10 +65,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  const notification = payload.notification as
+    | Record<string, unknown>
+    | undefined;
+  const data = payload.data as Record<string, unknown> | undefined;
+
   const tracker =
     (payload.tracker as string) ||
-    ((payload.data as Record<string, unknown> | undefined)?.tracker as string) ||
-    ((payload.data as Record<string, unknown> | undefined)?.token as string);
+    (notification?.tracker as string) ||
+    (data?.tracker as string) ||
+    (data?.token as string);
 
   console.info("[safepay webhook]", { tracker, keys: Object.keys(payload) });
 
@@ -58,20 +92,13 @@ export async function POST(req: Request) {
     });
   }
 
-  let booking = getLocalBookingByTracker(tracker);
+  let booking = await getLocalBookingByTracker(tracker);
   if (!booking) {
     const orderId =
       (payload.order_id as string) ||
       ((payload.metadata as Record<string, string> | undefined)?.order_id);
     if (orderId) {
-      booking =
-        listLocalBookings().find(
-          (b) =>
-            b.orderId === orderId ||
-            b.id === orderId ||
-            b.reference === orderId ||
-            b.notes?.includes(`order:${orderId}`),
-        ) || null;
+      booking = await getLocalBooking(orderId);
     }
   }
 
@@ -79,22 +106,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true, updated: false });
   }
 
-  const siblings = getOrderBookings(booking);
-  const half = booking.paymentKind === "half";
-  const status = half ? "partially_paid" : "paid";
-  const amounts = siblings.map((b) => {
-    const amountPaidPkr = half
-      ? Math.ceil(b.subtotalPkr / 2)
-      : b.subtotalPkr;
-    return {
-      id: b.id,
-      amountPaidPkr,
-      amountDuePkr: Math.max(0, b.subtotalPkr - amountPaidPkr),
-    };
-  });
+  const siblings = await getOrderBookings(booking);
+  const status = "paid";
+  const amounts = siblings.map((b) => ({
+    id: b.id,
+    amountPaidPkr: b.subtotalPkr,
+    amountDuePkr: 0,
+  }));
 
   for (const b of siblings) {
-    updateLocalBooking(b.id, { gatewayTracker: tracker });
+    await updateLocalBooking(b.id, { gatewayTracker: tracker });
   }
 
   const finalized = await finalizeSuccessfulBooking({
