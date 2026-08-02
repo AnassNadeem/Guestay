@@ -1,6 +1,3 @@
-import {
-  listLocalBookings,
-} from "@/lib/bookings/local-store";
 import { getRoomBySlug } from "@/lib/mock";
 import { quoteStay } from "@/lib/pricing";
 import { createServiceSupabase, hasSupabase } from "@/lib/supabase/client";
@@ -12,7 +9,6 @@ export type AvailabilityLine = {
   checkIn: string;
   checkOut: string;
   guests: number;
-  /** Existing hold to ignore (own checkout hold) */
   excludeBookingId?: string;
 };
 
@@ -32,49 +28,8 @@ export type AvailabilityResult = {
   reason?: string;
 };
 
-function datesOverlap(
-  aIn: string,
-  aOut: string,
-  bIn: string,
-  bOut: string,
-) {
-  return aIn < bOut && aOut > bIn;
-}
-
-async function localBedsOccupied(
-  roomSlug: string,
-  checkIn: string,
-  checkOut: string,
-  excludeBookingId?: string,
-) {
-  let occupied = 0;
-  const now = Date.now();
-  for (const b of listLocalBookings()) {
-    if (b.roomSlug !== roomSlug) continue;
-    if (excludeBookingId && b.id === excludeBookingId) continue;
-    if (
-      !["pending_hold", "partially_paid", "paid", "confirmed_no_advance"].includes(
-        b.status,
-      )
-    ) {
-      continue;
-    }
-    if (
-      b.status === "pending_hold" &&
-      (!b.holdExpiresAt || new Date(b.holdExpiresAt).getTime() <= now)
-    ) {
-      continue;
-    }
-    if (datesOverlap(b.checkIn, b.checkOut, checkIn, checkOut)) {
-      occupied += b.bedsBooked;
-    }
-  }
-  return occupied;
-}
-
 /**
- * Hard availability + fresh quote for one stay line.
- * Prefers Supabase beds_occupied; falls back to local bookings.
+ * Hard availability + fresh quote for one stay line (Supabase RPCs only).
  */
 export async function checkLineAvailability(
   line: AvailabilityLine,
@@ -128,7 +83,7 @@ export async function checkLineAvailability(
 
   const bedsNeeded = quote.bedsBooked;
   let bedsOccupied = 0;
-  // beds_occupied RPC expects uuid — local hex ids must not be sent
+
   const excludeId =
     line.excludeBookingId &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -137,76 +92,90 @@ export async function checkLineAvailability(
       ? line.excludeBookingId
       : null;
 
-  if (hasSupabase()) {
-    try {
-      const sb = createServiceSupabase();
-      const { data: dbRoom } = await sb
-        .from("rooms")
-        .select("id")
-        .eq("slug", line.roomSlug)
-        .maybeSingle();
+  if (!hasSupabase()) {
+    return {
+      ok: false,
+      roomSlug: room.slug,
+      roomName: room.name,
+      available: false,
+      capacity: room.capacity,
+      bedsNeeded,
+      bedsOccupied: 0,
+      nights: quote.nights,
+      ratePerNightPkr: quote.ratePerNightPkr,
+      subtotalPkr: quote.staySubtotalPkr,
+      effectivePerNightPkr: quote.effectivePerNightPkr,
+      bedsBooked: quote.bedsBooked,
+      reason: "Supabase is not configured",
+    };
+  }
 
-      if (dbRoom?.id) {
-        const [bedsRes, otaRes] = await Promise.all([
-          sb.rpc("beds_occupied", {
-            p_room_id: dbRoom.id,
-            p_check_in: line.checkIn,
-            p_check_out: line.checkOut,
-            p_exclude_booking: excludeId,
-          }),
-          sb.rpc("ota_beds_blocked", {
-            p_room_id: dbRoom.id,
-            p_check_in: line.checkIn,
-            p_check_out: line.checkOut,
-          }),
-        ]);
+  try {
+    const sb = createServiceSupabase();
+    const { data: dbRoom } = await sb
+      .from("rooms")
+      .select("id")
+      .eq("slug", line.roomSlug)
+      .maybeSingle();
 
-        if (!bedsRes.error && typeof bedsRes.data === "number") {
-          bedsOccupied = bedsRes.data;
-        } else {
-          bedsOccupied = await localBedsOccupied(
-            line.roomSlug,
-            line.checkIn,
-            line.checkOut,
-            line.excludeBookingId,
-          );
-        }
-
-        // Local-only holds aren't in the RPC — fold them in (excluding our own)
-        const localOccupied = await localBedsOccupied(
-          line.roomSlug,
-          line.checkIn,
-          line.checkOut,
-          line.excludeBookingId,
-        );
-        bedsOccupied = Math.max(bedsOccupied, localOccupied);
-
-        if (typeof otaRes.data === "number" && otaRes.data > 0) {
-          bedsOccupied = Math.max(bedsOccupied, room.capacity);
-        }
-      } else {
-        bedsOccupied = await localBedsOccupied(
-          line.roomSlug,
-          line.checkIn,
-          line.checkOut,
-          line.excludeBookingId,
-        );
-      }
-    } catch {
-      bedsOccupied = await localBedsOccupied(
-        line.roomSlug,
-        line.checkIn,
-        line.checkOut,
-        line.excludeBookingId,
-      );
+    if (!dbRoom?.id) {
+      return {
+        ok: false,
+        roomSlug: room.slug,
+        roomName: room.name,
+        available: false,
+        capacity: room.capacity,
+        bedsNeeded,
+        bedsOccupied: 0,
+        nights: quote.nights,
+        ratePerNightPkr: quote.ratePerNightPkr,
+        subtotalPkr: quote.staySubtotalPkr,
+        effectivePerNightPkr: quote.effectivePerNightPkr,
+        bedsBooked: quote.bedsBooked,
+        reason: `Room "${line.roomSlug}" is not in the database`,
+      };
     }
-  } else {
-    bedsOccupied = await localBedsOccupied(
-      line.roomSlug,
-      line.checkIn,
-      line.checkOut,
-      line.excludeBookingId,
-    );
+
+    const [bedsRes, otaRes] = await Promise.all([
+      sb.rpc("beds_occupied", {
+        p_room_id: dbRoom.id,
+        p_check_in: line.checkIn,
+        p_check_out: line.checkOut,
+        p_exclude_booking: excludeId,
+      }),
+      sb.rpc("ota_beds_blocked", {
+        p_room_id: dbRoom.id,
+        p_check_in: line.checkIn,
+        p_check_out: line.checkOut,
+      }),
+    ]);
+
+    if (!bedsRes.error && typeof bedsRes.data === "number") {
+      bedsOccupied = bedsRes.data;
+    } else if (bedsRes.error) {
+      console.error("[availability] beds_occupied", bedsRes.error.message);
+    }
+
+    if (typeof otaRes.data === "number" && otaRes.data > 0) {
+      bedsOccupied = Math.max(bedsOccupied, room.capacity);
+    }
+  } catch (e) {
+    console.error("[availability]", e);
+    return {
+      ok: false,
+      roomSlug: room.slug,
+      roomName: room.name,
+      available: false,
+      capacity: room.capacity,
+      bedsNeeded,
+      bedsOccupied: 0,
+      nights: quote.nights,
+      ratePerNightPkr: quote.ratePerNightPkr,
+      subtotalPkr: quote.staySubtotalPkr,
+      effectivePerNightPkr: quote.effectivePerNightPkr,
+      bedsBooked: quote.bedsBooked,
+      reason: "Could not check availability",
+    };
   }
 
   const available = bedsOccupied + bedsNeeded <= room.capacity;

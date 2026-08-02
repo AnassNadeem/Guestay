@@ -1,12 +1,5 @@
 import { checkLineAvailability } from "@/lib/bookings/availability";
-import {
-  createLocalHold,
-  extendLocalHold,
-  getLocalBooking,
-  listLocalBookings,
-  updateLocalBooking,
-  type LocalBooking,
-} from "@/lib/bookings/local-store";
+import { extendLocalHold } from "@/lib/bookings/local-store";
 import { quoteStay } from "@/lib/pricing";
 import { getRoomBySlug } from "@/lib/mock";
 import { createServiceSupabase, hasSupabase } from "@/lib/supabase/client";
@@ -35,9 +28,7 @@ export type HoldResult = {
 };
 
 /**
- * Create a short inventory hold. Prefers Supabase; falls back to local-store.
- * Pass skipAvailabilityCheck when the caller already verified availability
- * (e.g. start-checkout) to avoid a duplicate round-trip.
+ * Create a short inventory hold in Supabase. Fails if DB/room unavailable.
  */
 export async function createRoomHold(input: {
   roomSlug: string;
@@ -49,9 +40,12 @@ export async function createRoomHold(input: {
   guestName?: string;
   guestEmail?: string;
   guestPhone?: string;
-  /** When true, skip the second availability RPC — caller already checked */
   skipAvailabilityCheck?: boolean;
 }): Promise<HoldResult> {
+  if (!hasSupabase()) {
+    throw new Error("Supabase is not configured — cannot create holds");
+  }
+
   const room = await getRoomBySlug(input.roomSlug);
   if (!room) throw new Error("Room not found");
 
@@ -86,118 +80,74 @@ export async function createRoomHold(input: {
   });
 
   const mins = holdMinutes();
-  // Always hold until reserve/payment confirms — even for group (no-advance)
   const holdExpiresAt = new Date(Date.now() + mins * 60 * 1000).toISOString();
-
   const guestName = input.guestName || "Guest";
   const guestEmail = input.guestEmail || "hold@guestay.pk";
   const guestPhone = input.guestPhone || "";
 
-  if (hasSupabase()) {
-    try {
-      const sb = createServiceSupabase();
-      const { data: dbRoom } = await sb
-        .from("rooms")
-        .select("id, name")
-        .eq("slug", input.roomSlug)
-        .maybeSingle();
+  const sb = createServiceSupabase();
+  const { data: dbRoom, error: roomErr } = await sb
+    .from("rooms")
+    .select("id, name")
+    .eq("slug", input.roomSlug)
+    .maybeSingle();
 
-      if (dbRoom?.id) {
-        // HOLD- only until payment/confirm success mints GST-…
-        const { generateHoldReference } = await import(
-          "@/lib/bookings/reference"
-        );
-        const reference = generateHoldReference();
-        const { data, error } = await sb
-          .from("bookings")
-          .insert({
-            reference,
-            room_id: dbRoom.id,
-            guest_name: guestName,
-            guest_email: guestEmail,
-            guest_phone: guestPhone || "pending",
-            guest_count: input.guests,
-            booking_mode: input.mode,
-            beds_booked: quote.bedsBooked,
-            check_in: input.checkIn,
-            check_out: input.checkOut,
-            nights: quote.nights,
-            status: "pending_hold",
-            source: "direct",
-            tier_applied: quote.tier,
-            rate_per_night_pkr: quote.ratePerNightPkr,
-            subtotal_pkr: quote.staySubtotalPkr,
-            deposit_list_pkr: quote.depositListPkr,
-            deposit_discount_pkr: quote.depositDiscountPkr,
-            deposit_due_pkr: quote.depositDuePkr,
-            amount_paid_pkr: 0,
-            amount_due_pkr: quote.staySubtotalPkr,
-            total_pkr: quote.staySubtotalPkr + quote.depositDuePkr,
-            hold_expires_at: holdExpiresAt,
-            is_group_no_advance: quote.isGroupNoAdvance,
-            cart_item_id: input.cartItemId,
-          })
-          .select("id, reference, hold_expires_at, status")
-          .single();
-
-          if (!error && data) {
-          // Lightweight local mirror — skip full createLocalHold (avoids another quote path)
-          try {
-            const localId = data.id as string;
-            updateLocalBooking(localId, {
-              id: localId,
-              reference: data.reference,
-              holdExpiresAt: data.hold_expires_at,
-              notes: `cart:${input.cartItemId}`,
-            });
-          } catch {
-            /* local mirror optional */
-          }
-
-          return {
-            bookingId: data.id,
-            reference: data.reference,
-            holdExpiresAt: data.hold_expires_at,
-            nights: quote.nights,
-            ratePerNightPkr: quote.ratePerNightPkr,
-            subtotalPkr: quote.staySubtotalPkr,
-            effectivePerNightPkr: quote.effectivePerNightPkr,
-            bedsBooked: quote.bedsBooked,
-            roomName: dbRoom.name || room.name,
-            status: data.status,
-          };
-        }
-      }
-    } catch {
-      /* fall through to local */
-    }
+  if (roomErr || !dbRoom?.id) {
+    throw new Error(
+      roomErr?.message ||
+        `Room "${input.roomSlug}" is not in the database — seed or create via admin`,
+    );
   }
 
-  const { booking } = await createLocalHold({
-    roomSlug: input.roomSlug,
-    mode: input.mode,
-    checkIn: input.checkIn,
-    checkOut: input.checkOut,
-    guests: input.guests,
-    guestName,
-    guestEmail,
-    guestPhone,
-  });
-  updateLocalBooking(booking.id, {
-    notes: `cart:${input.cartItemId}`,
-  });
+  const { generateHoldReference } = await import("@/lib/bookings/reference");
+  const reference = generateHoldReference();
+  const { data, error } = await sb
+    .from("bookings")
+    .insert({
+      reference,
+      room_id: dbRoom.id,
+      guest_name: guestName,
+      guest_email: guestEmail,
+      guest_phone: guestPhone || "pending",
+      guest_count: input.guests,
+      booking_mode: input.mode,
+      beds_booked: quote.bedsBooked,
+      check_in: input.checkIn,
+      check_out: input.checkOut,
+      nights: quote.nights,
+      status: "pending_hold",
+      source: "direct",
+      tier_applied: quote.tier,
+      rate_per_night_pkr: quote.ratePerNightPkr,
+      subtotal_pkr: quote.staySubtotalPkr,
+      deposit_list_pkr: quote.depositListPkr,
+      deposit_discount_pkr: quote.depositDiscountPkr,
+      deposit_due_pkr: quote.depositDuePkr,
+      amount_paid_pkr: 0,
+      amount_due_pkr: quote.staySubtotalPkr,
+      total_pkr: quote.staySubtotalPkr + quote.depositDuePkr,
+      hold_expires_at: holdExpiresAt,
+      is_group_no_advance: quote.isGroupNoAdvance,
+      cart_item_id: input.cartItemId,
+    })
+    .select("id, reference, hold_expires_at, status")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || "Failed to create hold");
+  }
 
   return {
-    bookingId: booking.id,
-    reference: booking.reference,
-    holdExpiresAt: booking.holdExpiresAt,
+    bookingId: data.id,
+    reference: data.reference,
+    holdExpiresAt: data.hold_expires_at,
     nights: quote.nights,
     ratePerNightPkr: quote.ratePerNightPkr,
     subtotalPkr: quote.staySubtotalPkr,
     effectivePerNightPkr: quote.effectivePerNightPkr,
     bedsBooked: quote.bedsBooked,
-    roomName: room.name,
-    status: booking.status,
+    roomName: dbRoom.name || room.name,
+    status: data.status,
   };
 }
 
@@ -205,31 +155,25 @@ export async function extendRoomHold(
   bookingId: string,
   minutes = holdMinutes(),
 ): Promise<{ holdExpiresAt: string } | null> {
-  if (hasSupabase()) {
-    try {
-      const sb = createServiceSupabase();
-      const next = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-      const { data, error } = await sb
-        .from("bookings")
-        .update({
-          hold_expires_at: next,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", bookingId)
-        .eq("status", "pending_hold")
-        .select("hold_expires_at")
-        .maybeSingle();
-      if (!error && data?.hold_expires_at) {
-        extendLocalHold(bookingId, minutes);
-        return { holdExpiresAt: data.hold_expires_at };
-      }
-    } catch {
-      /* fall through */
-    }
+  if (!hasSupabase()) return null;
+  const sb = createServiceSupabase();
+  const next = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+  const { data, error } = await sb
+    .from("bookings")
+    .update({
+      hold_expires_at: next,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId)
+    .eq("status", "pending_hold")
+    .select("hold_expires_at")
+    .maybeSingle();
+  if (error || !data?.hold_expires_at) {
+    const updated = await extendLocalHold(bookingId, minutes);
+    if (!updated?.holdExpiresAt) return null;
+    return { holdExpiresAt: updated.holdExpiresAt };
   }
-  const updated = extendLocalHold(bookingId, minutes);
-  if (!updated?.holdExpiresAt) return null;
-  return { holdExpiresAt: updated.holdExpiresAt };
+  return { holdExpiresAt: data.hold_expires_at };
 }
 
 export async function updateRoomHoldDates(input: {
@@ -238,105 +182,28 @@ export async function updateRoomHoldDates(input: {
   checkOut: string;
   guests?: number;
 }): Promise<HoldResult> {
-  const local = getLocalBooking(input.bookingId);
-  let roomSlug = local?.roomSlug;
-  let mode = local?.bookingMode;
-  let guests = input.guests ?? local?.guestCount ?? 1;
+  if (!hasSupabase()) throw new Error("Supabase is not configured");
 
-  if (hasSupabase()) {
-    try {
-      const sb = createServiceSupabase();
-      const { data: row } = await sb
-        .from("bookings")
-        .select("id, room_id, booking_mode, guest_count, cart_item_id, rooms(slug, name)")
-        .eq("id", input.bookingId)
-        .maybeSingle();
+  const sb = createServiceSupabase();
+  const { data: row } = await sb
+    .from("bookings")
+    .select("id, room_id, booking_mode, guest_count, rooms(slug, name)")
+    .eq("id", input.bookingId)
+    .maybeSingle();
 
-      if (row) {
-        const roomsJoin = row.rooms as
-          | { slug: string; name: string }
-          | { slug: string; name: string }[]
-          | null;
-        const roomRow = Array.isArray(roomsJoin) ? roomsJoin[0] : roomsJoin;
-        roomSlug = roomRow?.slug || roomSlug;
-        mode = (row.booking_mode as BookingMode) || mode;
-        guests = input.guests ?? row.guest_count ?? guests;
+  if (!row) throw new Error("Hold not found");
 
-        if (!roomSlug || !mode) throw new Error("Hold not found");
+  const roomsJoin = row.rooms as
+    | { slug: string; name: string }
+    | { slug: string; name: string }[]
+    | null;
+  const roomRow = Array.isArray(roomsJoin) ? roomsJoin[0] : roomsJoin;
+  const roomSlug = roomRow?.slug;
+  const mode = row.booking_mode as BookingMode;
+  const guests = input.guests ?? row.guest_count ?? 1;
 
-        const room = await getRoomBySlug(roomSlug);
-        if (!room) throw new Error("Room not found");
+  if (!roomSlug || !mode) throw new Error("Hold not found");
 
-        const quote = quoteStay({
-          room,
-          mode,
-          checkIn: input.checkIn,
-          checkOut: input.checkOut,
-          guestCount: guests,
-          isDirect: true,
-          depositDiscountRate: Number(
-            process.env.DIRECT_BOOKING_DEPOSIT_DISCOUNT || 0.1,
-          ),
-        });
-
-        const nextHold = new Date(
-          Date.now() + holdMinutes() * 60 * 1000,
-        ).toISOString();
-
-        const { data, error } = await sb
-          .from("bookings")
-          .update({
-            check_in: input.checkIn,
-            check_out: input.checkOut,
-            nights: quote.nights,
-            tier_applied: quote.tier,
-            rate_per_night_pkr: quote.ratePerNightPkr,
-            subtotal_pkr: quote.staySubtotalPkr,
-            deposit_due_pkr: quote.depositDuePkr,
-            amount_due_pkr: quote.staySubtotalPkr,
-            beds_booked: quote.bedsBooked,
-            hold_expires_at: nextHold,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", input.bookingId)
-          .eq("status", "pending_hold")
-          .select("id, reference, hold_expires_at, status")
-          .single();
-
-        if (error) throw error;
-
-        if (local) {
-          updateLocalBooking(local.id, {
-            checkIn: input.checkIn,
-            checkOut: input.checkOut,
-            nights: quote.nights,
-            ratePerNightPkr: quote.ratePerNightPkr,
-            subtotalPkr: quote.staySubtotalPkr,
-            totalPkr: quote.staySubtotalPkr + quote.depositDuePkr,
-            bedsBooked: quote.bedsBooked,
-            holdExpiresAt: nextHold,
-          });
-        }
-
-        return {
-          bookingId: data.id,
-          reference: data.reference,
-          holdExpiresAt: data.hold_expires_at,
-          nights: quote.nights,
-          ratePerNightPkr: quote.ratePerNightPkr,
-          subtotalPkr: quote.staySubtotalPkr,
-          effectivePerNightPkr: quote.effectivePerNightPkr,
-          bedsBooked: quote.bedsBooked,
-          roomName: roomRow?.name || room.name,
-          status: data.status,
-        };
-      }
-    } catch (e) {
-      if (!local) throw e;
-    }
-  }
-
-  if (!local || !roomSlug || !mode) throw new Error("Hold not found");
   const room = await getRoomBySlug(roomSlug);
   if (!room) throw new Error("Room not found");
 
@@ -347,160 +214,114 @@ export async function updateRoomHoldDates(input: {
     checkOut: input.checkOut,
     guestCount: guests,
     isDirect: true,
+    depositDiscountRate: Number(
+      process.env.DIRECT_BOOKING_DEPOSIT_DISCOUNT || 0.1,
+    ),
   });
 
   const nextHold = new Date(
     Date.now() + holdMinutes() * 60 * 1000,
   ).toISOString();
 
-  const updated = updateLocalBooking(local.id, {
-    checkIn: input.checkIn,
-    checkOut: input.checkOut,
-    nights: quote.nights,
-    ratePerNightPkr: quote.ratePerNightPkr,
-    subtotalPkr: quote.staySubtotalPkr,
-    totalPkr: quote.staySubtotalPkr + quote.depositDuePkr,
-    bedsBooked: quote.bedsBooked,
-    holdExpiresAt: nextHold,
-    tierApplied: quote.tier,
-  }) as LocalBooking;
+  const { data, error } = await sb
+    .from("bookings")
+    .update({
+      check_in: input.checkIn,
+      check_out: input.checkOut,
+      nights: quote.nights,
+      tier_applied: quote.tier,
+      rate_per_night_pkr: quote.ratePerNightPkr,
+      subtotal_pkr: quote.staySubtotalPkr,
+      deposit_due_pkr: quote.depositDuePkr,
+      amount_due_pkr: quote.staySubtotalPkr,
+      beds_booked: quote.bedsBooked,
+      guest_count: guests,
+      hold_expires_at: nextHold,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.bookingId)
+    .eq("status", "pending_hold")
+    .select("id, reference, hold_expires_at, status")
+    .single();
+
+  if (error || !data) throw new Error(error?.message || "Failed to update hold");
 
   return {
-    bookingId: updated.id,
-    reference: updated.reference,
-    holdExpiresAt: updated.holdExpiresAt,
+    bookingId: data.id,
+    reference: data.reference,
+    holdExpiresAt: data.hold_expires_at,
     nights: quote.nights,
     ratePerNightPkr: quote.ratePerNightPkr,
     subtotalPkr: quote.staySubtotalPkr,
     effectivePerNightPkr: quote.effectivePerNightPkr,
     bedsBooked: quote.bedsBooked,
-    roomName: room.name,
-    status: updated.status,
+    roomName: roomRow?.name || room.name,
+    status: data.status,
   };
 }
 
 export async function releaseRoomHold(bookingId: string) {
-  if (hasSupabase()) {
-    try {
-      const sb = createServiceSupabase();
-      await sb
-        .from("bookings")
-        .update({
-          status: "expired_hold",
-          hold_expires_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", bookingId)
-        .eq("status", "pending_hold");
-    } catch {
-      /* ignore */
-    }
-  }
-  const local = getLocalBooking(bookingId);
-  if (local) {
-    updateLocalBooking(local.id, {
+  if (!hasSupabase()) return;
+  const sb = createServiceSupabase();
+  await sb
+    .from("bookings")
+    .update({
       status: "expired_hold",
-      holdExpiresAt: null,
-    });
-  }
+      hold_expires_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId)
+    .eq("status", "pending_hold");
 }
 
-/**
- * Drop leftover pending holds for a checkout line so refreshes don't stack
- * inventory locks (and exclusive rooms don't look "unavailable").
- */
 export async function releaseHoldsByCartItemId(cartItemId: string) {
-  if (!cartItemId) return;
-
-  if (hasSupabase()) {
-    try {
-      const sb = createServiceSupabase();
-      await sb
-        .from("bookings")
-        .update({
-          status: "expired_hold",
-          hold_expires_at: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("cart_item_id", cartItemId)
-        .eq("status", "pending_hold");
-    } catch {
-      /* ignore */
-    }
-  }
-
-  const note = `cart:${cartItemId}`;
-  for (const b of listLocalBookings()) {
-    if (b.status === "pending_hold" && b.notes === note) {
-      updateLocalBooking(b.id, {
-        status: "expired_hold",
-        holdExpiresAt: null,
-      });
-    }
-  }
+  if (!cartItemId || !hasSupabase()) return;
+  const sb = createServiceSupabase();
+  await sb
+    .from("bookings")
+    .update({
+      status: "expired_hold",
+      hold_expires_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("cart_item_id", cartItemId)
+    .eq("status", "pending_hold");
 }
 
-/**
- * Clear abandoned checkout locks for a room/date range.
- * Soft "Saved" items never create holds — only checkout does, and those use
- * the placeholder guest email until the guest confirms. Leftover locks from
- * earlier attempts (different cart line ids) were falsely blocking the room.
- */
 export async function releaseAbandonedCheckoutHolds(input: {
   roomSlug: string;
   checkIn: string;
   checkOut: string;
 }) {
+  if (!hasSupabase()) return;
   const placeholderEmail = "hold@guestay.pk";
+  const sb = createServiceSupabase();
+  const { data: dbRoom } = await sb
+    .from("rooms")
+    .select("id")
+    .eq("slug", input.roomSlug)
+    .maybeSingle();
 
-  if (hasSupabase()) {
-    try {
-      const sb = createServiceSupabase();
-      const { data: dbRoom } = await sb
-        .from("rooms")
-        .select("id")
-        .eq("slug", input.roomSlug)
-        .maybeSingle();
+  if (!dbRoom?.id) return;
 
-      if (dbRoom?.id) {
-        // Fetch overlapping placeholder holds then expire — PostgREST can't
-        // express date-overlap + email in one filter cleanly.
-        const { data: rows } = await sb
-          .from("bookings")
-          .select("id, check_in, check_out, guest_email, cart_item_id")
-          .eq("room_id", dbRoom.id)
-          .eq("status", "pending_hold")
-          .eq("guest_email", placeholderEmail)
-          .lt("check_in", input.checkOut)
-          .gt("check_out", input.checkIn);
+  const { data: rows } = await sb
+    .from("bookings")
+    .select("id")
+    .eq("room_id", dbRoom.id)
+    .eq("status", "pending_hold")
+    .eq("guest_email", placeholderEmail)
+    .lt("check_in", input.checkOut)
+    .gt("check_out", input.checkIn);
 
-        const ids = (rows || []).map((r) => r.id as string).filter(Boolean);
-        if (ids.length > 0) {
-          await sb
-            .from("bookings")
-            .update({
-              status: "expired_hold",
-              hold_expires_at: null,
-              updated_at: new Date().toISOString(),
-            })
-            .in("id", ids);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-
-  for (const b of listLocalBookings()) {
-    if (b.roomSlug !== input.roomSlug) continue;
-    if (b.status !== "pending_hold") continue;
-    if (b.guestEmail !== placeholderEmail && !b.notes?.startsWith("cart:")) {
-      continue;
-    }
-    if (!(b.checkIn < input.checkOut && b.checkOut > input.checkIn)) continue;
-    updateLocalBooking(b.id, {
-      status: "expired_hold",
-      holdExpiresAt: null,
-    });
+  const ids = (rows || []).map((r) => r.id as string).filter(Boolean);
+  if (ids.length > 0) {
+    await sb
+      .from("bookings")
+      .update({
+        status: "expired_hold",
+        hold_expires_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", ids);
   }
 }
