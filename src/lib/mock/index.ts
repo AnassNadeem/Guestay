@@ -18,6 +18,10 @@ import {
   testimonials,
 } from "./content";
 import { amenitiesCatalog, rooms } from "./rooms";
+import {
+  fetchRoomBySlugFromSupabase,
+  fetchRoomsFromSupabase,
+} from "@/lib/rooms/db";
 
 export async function getRooms(filters?: {
   type?: Room["type"] | "all";
@@ -25,8 +29,13 @@ export async function getRooms(filters?: {
   featured?: boolean;
   status?: Room["status"];
 }): Promise<Room[]> {
-  let result = [...rooms];
+  const fromDb = await fetchRoomsFromSupabase(filters);
+  if (fromDb && fromDb.length > 0) return fromDb;
 
+  // Empty DB is a valid state (show nothing) when Supabase is configured
+  if (fromDb && fromDb.length === 0) return [];
+
+  let result = [...rooms];
   if (filters?.featured) {
     result = result.filter((r) => r.featured);
   }
@@ -41,16 +50,21 @@ export async function getRooms(filters?: {
   if (filters?.type && filters.type !== "all") {
     result = result.filter((r) => r.type === filters.type);
   }
-
   return result;
 }
 
 export async function getRoomBySlug(slug: string): Promise<Room | null> {
+  const fromDb = await fetchRoomBySlugFromSupabase(slug);
+  if (fromDb) return fromDb;
+  // Prefer DB miss over mock when Supabase is live (avoid ghost inventory)
+  const { hasSupabase } = await import("@/lib/supabase/client");
+  if (hasSupabase()) return null;
   return rooms.find((r) => r.slug === slug && r.status !== "archived") ?? null;
 }
 
 export async function getFeaturedRooms(limit = 5): Promise<Room[]> {
-  return rooms.filter((r) => r.featured && r.status === "active").slice(0, limit);
+  const featured = await getRooms({ featured: true });
+  return featured.slice(0, limit);
 }
 
 export async function getAmenities(): Promise<Amenity[]> {
