@@ -1,6 +1,5 @@
 import {
   listBookingsByGuest,
-  listLocalBookings,
   type LocalBooking,
 } from "@/lib/bookings/local-store";
 import { sessionUserIdFromRequest } from "@/lib/bookings/confirm";
@@ -17,17 +16,17 @@ const VISIBLE_STATUSES: BookingStatus[] = [
 export async function GET(req: Request) {
   try {
     const sessionUserId = await sessionUserIdFromRequest(req);
-    const emailHeader = req.headers.get("x-guestay-email");
-
-    let bookings: LocalBooking[] = [];
-    if (sessionUserId || emailHeader) {
-      bookings = await listBookingsByGuest({
-        guestId: sessionUserId,
-        email: emailHeader,
-      });
+    if (!sessionUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (sessionUserId && bookings.length === 0) {
+    let bookings: LocalBooking[] = await listBookingsByGuest({
+      guestId: sessionUserId,
+    });
+
+    // Fallback: match by the verified session user's email when guest_id
+    // was not linked at booking time (e.g. guest paid before claiming account).
+    if (bookings.length === 0) {
       const { hasSupabase, createServiceSupabase } = await import(
         "@/lib/supabase/client"
       );
@@ -39,13 +38,6 @@ export async function GET(req: Request) {
           bookings = await listBookingsByGuest({ email });
         }
       }
-    }
-
-    if (
-      bookings.length === 0 &&
-      process.env.ACCOUNT_BOOKINGS_DEBUG_ALL === "1"
-    ) {
-      bookings = await listLocalBookings();
     }
 
     return NextResponse.json({

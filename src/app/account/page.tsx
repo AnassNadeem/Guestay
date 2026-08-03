@@ -363,7 +363,6 @@ function AccountInner() {
           headers.Authorization = `Bearer ${session.access_token}`;
         }
       }
-      if (userEmail) headers["x-guestay-email"] = userEmail;
 
       const res = await fetch("/api/account/bookings", { headers });
       const data = await res.json();
