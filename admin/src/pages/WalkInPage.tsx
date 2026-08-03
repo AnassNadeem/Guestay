@@ -1,5 +1,6 @@
 import { useList } from "@refinedev/core";
 import { useState } from "react";
+import { adminAuthHeaders } from "../lib/adminAuthHeaders";
 import { SITE_URL } from "../lib/format";
 
 export function WalkInPage() {
@@ -24,7 +25,7 @@ export function WalkInPage() {
     try {
       const res = await fetch(`${SITE_URL}/api/admin/walk-in`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await adminAuthHeaders(),
         body: JSON.stringify({ ...form, mode: "exclusive" }),
       });
       const data = await res.json();

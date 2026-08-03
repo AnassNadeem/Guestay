@@ -1,4 +1,5 @@
 import { getLocalBooking, updateLocalBooking } from "@/lib/bookings/local-store";
+import { requireStaffRole } from "@/lib/auth/requireStaffRole";
 import { createServiceSupabase, hasSupabase } from "@/lib/supabase/client";
 import { NextResponse } from "next/server";
 
@@ -8,6 +9,9 @@ import { NextResponse } from "next/server";
  * Does NOT call Safepay refund API — Owner refunds in Safepay dashboard.
  */
 export async function POST(req: Request) {
+  const auth = await requireStaffRole(req, ["owner"]);
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { ticketId, decision, ownerNote, amountPkr, bookingId } = body as {
     ticketId: string;
@@ -16,11 +20,6 @@ export async function POST(req: Request) {
     amountPkr?: number;
     bookingId?: string;
   };
-
-  const roleHeader = req.headers.get("x-guestay-role");
-  if (roleHeader && roleHeader !== "owner") {
-    return NextResponse.json({ error: "Owner only" }, { status: 403 });
-  }
 
   if (!hasSupabase()) {
     return NextResponse.json(
@@ -46,6 +45,7 @@ export async function POST(req: Request) {
       action: decision === "deny" ? "refund_denied" : "refund_approved",
       table_name: "refund_requests",
       row_id: ticketId,
+      actor_id: auth.userId,
       after: { bookingId, amountPkr, ownerNote, status },
     });
   }

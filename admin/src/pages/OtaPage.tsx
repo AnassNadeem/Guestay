@@ -1,5 +1,6 @@
 import { useList } from "@refinedev/core";
 import { CopyField } from "../components/CopyField";
+import { adminAuthHeaders } from "../lib/adminAuthHeaders";
 import { SITE_URL, SOURCE_LABEL } from "../lib/format";
 
 const IMPORT_TIP =
@@ -17,7 +18,7 @@ export function OtaPage() {
   async function forceResync(id: string) {
     await fetch(`${SITE_URL}/api/admin/ota/resync`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await adminAuthHeaders(),
       body: JSON.stringify({ feedId: id }),
     }).catch(() => {});
     refetch();

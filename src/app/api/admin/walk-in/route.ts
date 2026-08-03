@@ -1,9 +1,13 @@
+import { requireStaffRole } from "@/lib/auth/requireStaffRole";
 import { createWalkInBooking } from "@/lib/bookings/local-store";
 import { getRoomBySlug } from "@/lib/mock";
 import type { BookingMode } from "@/types";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
+  const auth = await requireStaffRole(req, ["owner", "manager"]);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const room = await getRoomBySlug(body.roomSlug);

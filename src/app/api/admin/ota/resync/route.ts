@@ -1,6 +1,10 @@
+import { requireStaffRole } from "@/lib/auth/requireStaffRole";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
+  const auth = await requireStaffRole(req, ["owner", "manager"]);
+  if (!auth.ok) return auth.response;
+
   const body = await req.json().catch(() => ({}));
   const worker = process.env.ICAL_WORKER_BASE_URL;
   if (!worker) {

@@ -1,6 +1,7 @@
 import { useGetIdentity, useList, useUpdate } from "@refinedev/core";
 import { useState } from "react";
 import { useRole } from "../hooks/useRole";
+import { adminAuthHeaders } from "../lib/adminAuthHeaders";
 import { REFUND_STATUS, statusMeta, SITE_URL } from "../lib/format";
 
 type Comment = { by: string; at: string; text: string };
@@ -41,11 +42,14 @@ export function RefundsPage() {
     );
     // Decision endpoint is intentionally NOT a Safepay call — refunds are
     // processed manually/offline. The API only records the decision.
-    void fetch(`${SITE_URL}/api/admin/refunds/decide`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-guestay-role": "owner" },
-      body: JSON.stringify({ ticketId: id, decision, ownerNote }),
-    }).catch(() => {});
+    void (async () => {
+      const headers = await adminAuthHeaders();
+      await fetch(`${SITE_URL}/api/admin/refunds/decide`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ticketId: id, decision, ownerNote }),
+      }).catch(() => {});
+    })();
   }
 
   function addComment(refund: Refund) {
