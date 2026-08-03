@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useToast } from "@/components/ui/Toast";
 import { formatCurrency } from "@/lib/utils";
 import type { BookingMode } from "@/types";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -645,9 +646,9 @@ export function CheckoutForm() {
     return (
       <p className="text-ink-muted">
         Missing booking details.{" "}
-        <a href="/rooms" className="text-olive underline">
+        <Link href="/rooms" className="text-olive underline">
           Choose a room
-        </a>
+        </Link>
         .
       </p>
     );
@@ -801,13 +802,13 @@ export function CheckoutForm() {
             />
             <span>
               I agree to the{" "}
-              <a href="/terms" className="text-olive underline">
+              <Link href="/terms" className="text-olive underline">
                 Terms of Service
-              </a>{" "}
+              </Link>{" "}
               and{" "}
-              <a href="/cancellation" className="text-olive underline">
+              <Link href="/cancellation" className="text-olive underline">
                 cancellation policy
-              </a>
+              </Link>
               .
             </span>
           </label>

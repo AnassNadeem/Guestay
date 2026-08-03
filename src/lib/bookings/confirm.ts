@@ -21,6 +21,7 @@ import {
   sendInternalBookingNotification,
   type AccountLinkScenario,
 } from "@/lib/mail/booking";
+import { getSiteUrl } from "@/lib/site-url";
 import type { User } from "@supabase/supabase-js";
 
 export type { AccountLinkScenario };
@@ -72,7 +73,7 @@ async function resolveAccountLink(opts: {
   setPasswordUrl: string | null;
 }> {
   const email = opts.guestEmail.trim().toLowerCase();
-  const site = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const site = getSiteUrl();
 
   try {
     const { hasSupabase, createServiceSupabase } = await import(

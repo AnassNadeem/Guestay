@@ -6,7 +6,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-type Props = { params: { reference: string } };
+type Props = { params: Promise<{ reference: string }> };
 
 export const metadata: Metadata = {
   title: "Booking confirmation",
@@ -16,7 +16,8 @@ export const metadata: Metadata = {
  * Legacy confirmation URL — redirects to /booking-confirmed when the stay
  * is finalized; otherwise shows hold state (reference still HOLD-…).
  */
-export default async function BookingConfirmationPage({ params }: Props) {
+export default async function BookingConfirmationPage(props: Props) {
+  const params = await props.params;
   const booking = await getLocalBooking(params.reference);
   if (!booking) notFound();
 

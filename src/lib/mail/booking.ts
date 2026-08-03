@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
+import { getSiteUrl } from "@/lib/site-url";
 import { formatCurrency, formatDateLabel } from "@/lib/utils";
 
 function smtpConfigured() {
@@ -46,7 +47,7 @@ function noreplyFrom() {
 }
 
 function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return getSiteUrl();
 }
 
 async function sendWithZoho(opts: {

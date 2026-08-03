@@ -1,5 +1,30 @@
 import type { Page } from "@playwright/test";
 
+/** Public site origin for Safepay return waits (local or PLAYWRIGHT_BASE_URL). */
+function appOrigin(): URL {
+  const base =
+    process.env.PLAYWRIGHT_BASE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "http://localhost:3000";
+  try {
+    return new URL(base);
+  } catch {
+    return new URL("http://localhost:3000");
+  }
+}
+
+/** True only when the browser is actually on our app — not when guestay.pk appears in a Safepay query param. */
+function isOnAppReturn(pageUrl: string): boolean {
+  try {
+    const actual = new URL(pageUrl);
+    const expected = appOrigin();
+    if (actual.host !== expected.host) return false;
+    return /\/(checkout\/return|booking-confirmed)/.test(actual.pathname);
+  } catch {
+    return false;
+  }
+}
+
 const CARD = {
   number: "5200000000001096",
   expiry: "03/28",
@@ -133,16 +158,16 @@ export async function completeSafepaySandboxCheckout(page: Page) {
   await handleSandbox3ds(page);
 
   await page.waitForURL(
-    /localhost:3000\/(checkout\/return|booking-confirmed)/,
+    (url) => isOnAppReturn(url.href),
     { timeout: 120_000 },
   );
 }
 
 async function handleSandbox3ds(page: Page) {
   // Challenge may be on main page or in iframe; wait briefly for it
-  const deadline = Date.now() + 45_000;
+  const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
-    if (/localhost:3000/.test(page.url())) return;
+    if (isOnAppReturn(page.url())) return;
 
     const roots: Array<Page | import("@playwright/test").Frame> = [
       page,

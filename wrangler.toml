@@ -42,6 +42,8 @@ DIRECT_BOOKING_DEPOSIT_DISCOUNT = "0.10"
 GROUP_NO_ADVANCE_MIN_GUESTS = "10"
 NEXT_PUBLIC_HOLD_MINUTES = "10"
 NEXT_PUBLIC_HOLD_GRACE_SECONDS = "60"
+# Public site origin for Safepay return/cancel URLs (top-level / sandbox Worker).
+NEXT_PUBLIC_SITE_URL = "https://guestay.pk"
 
 # -----------------------------------------------------------------------------
 # Preview — isolated sandbox credentials (set via wrangler secret --env preview)

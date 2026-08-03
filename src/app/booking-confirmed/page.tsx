@@ -8,11 +8,11 @@ import { notFound, redirect } from "next/navigation";
 import { PaymentProcessing } from "./PaymentProcessing";
 
 type Props = {
-  searchParams: {
+  searchParams: Promise<{
     ref?: string;
     scenario?: string;
     tracker?: string;
-  };
+  }>;
 };
 
 export const metadata: Metadata = {
@@ -55,7 +55,8 @@ function scenarioMessage(
   return null;
 }
 
-export default async function BookingConfirmedPage({ searchParams }: Props) {
+export default async function BookingConfirmedPage(props: Props) {
+  const searchParams = await props.searchParams;
   const tracker = searchParams.tracker?.trim();
   const ref = searchParams.ref?.trim();
 

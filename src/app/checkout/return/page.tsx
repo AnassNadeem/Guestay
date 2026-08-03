@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 type Props = {
-  searchParams: { tracker?: string; mock?: string; orderId?: string };
+  searchParams: Promise<{ tracker?: string; mock?: string; orderId?: string }>;
 };
 
 /**
@@ -29,7 +29,8 @@ type Props = {
  * Webhook (/api/webhooks/safepay) remains as an optional idempotent backup
  * for production later — it is not required for confirmation right now.
  */
-export default async function CheckoutReturnPage({ searchParams }: Props) {
+export default async function CheckoutReturnPage(props: Props) {
+  const searchParams = await props.searchParams;
   const tracker = searchParams.tracker;
   if (!tracker) {
     return (

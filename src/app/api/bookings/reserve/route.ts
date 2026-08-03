@@ -11,6 +11,7 @@ import {
 } from "@/lib/bookings/local-store";
 import { checkLinesAvailability } from "@/lib/bookings/availability";
 import { getPaymentGateway } from "@/lib/payments/gateway";
+import { getSiteUrl } from "@/lib/site-url";
 import type { BookingMode } from "@/types";
 import { NextResponse } from "next/server";
 
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    const site = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const site = getSiteUrl(req);
     const sessionUserId = await sessionUserIdFromRequest(req);
 
     if (lines && lines.length > 0) {
