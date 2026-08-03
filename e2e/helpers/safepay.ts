@@ -66,7 +66,11 @@ async function fillByHints(
  * Completes Safepay sandbox hosted checkout.
  * Flow: email → mobile → card + billing → Pay.
  */
-export async function completeSafepaySandboxCheckout(page: Page) {
+export async function completeSafepaySandboxCheckout(
+  page: Page,
+  opts?: { waitForReturn?: boolean },
+) {
+  const waitForReturn = opts?.waitForReturn !== false;
   await page.waitForURL(/getsafepay\.com|safepay/i, { timeout: 60_000 });
   await page.waitForLoadState("domcontentloaded");
   await page.waitForTimeout(1200);
@@ -157,10 +161,15 @@ export async function completeSafepaySandboxCheckout(page: Page) {
   // Sandbox 3DS "Purchase Authentication" — OTP is shown on the challenge (1234)
   await handleSandbox3ds(page);
 
-  await page.waitForURL(
-    (url) => isOnAppReturn(url.href),
-    { timeout: 120_000 },
-  );
+  if (waitForReturn) {
+    await page.waitForURL(
+      (url) => isOnAppReturn(url.href),
+      { timeout: 120_000 },
+    );
+  } else {
+    // Give Safepay a moment to fire the redirect/webhook without requiring return.
+    await page.waitForTimeout(8_000);
+  }
 }
 
 async function handleSandbox3ds(page: Page) {

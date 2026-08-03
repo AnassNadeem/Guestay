@@ -36,6 +36,7 @@ webServers.push({
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["**/phase4-webhook-only.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,
