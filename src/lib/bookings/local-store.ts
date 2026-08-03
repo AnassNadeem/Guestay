@@ -4,6 +4,7 @@
  */
 import { quoteStay } from "@/lib/pricing";
 import { getRoomBySlug } from "@/lib/mock";
+import { bookingWriteErrorMessage } from "@/lib/bookings/inventory-errors";
 import {
   generateBookingReference,
   generateHoldReference,
@@ -343,7 +344,9 @@ export async function createLocalHold(input: {
     .single();
 
   if (error || !data) {
-    throw new Error(error?.message || "Failed to create hold");
+    throw new Error(
+      bookingWriteErrorMessage(error, "Failed to create hold"),
+    );
   }
 
   return { booking: rowToLocal(data as DbBookingRow), quote };
@@ -622,7 +625,9 @@ export async function createWalkInBooking(input: {
     .select(SELECT)
     .single();
 
-  if (error || !data) throw new Error(error?.message || "Walk-in failed");
+  if (error || !data) {
+    throw new Error(bookingWriteErrorMessage(error, "Walk-in failed"));
+  }
   const booking = rowToLocal(data as DbBookingRow);
 
   if (input.amountCollectedPkr > 0) {

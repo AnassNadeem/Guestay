@@ -1,4 +1,5 @@
 import { checkLineAvailability } from "@/lib/bookings/availability";
+import { bookingWriteErrorMessage } from "@/lib/bookings/inventory-errors";
 import { extendLocalHold } from "@/lib/bookings/local-store";
 import { quoteStay } from "@/lib/pricing";
 import { getRoomBySlug } from "@/lib/mock";
@@ -134,7 +135,9 @@ export async function createRoomHold(input: {
     .single();
 
   if (error || !data) {
-    throw new Error(error?.message || "Failed to create hold");
+    throw new Error(
+      bookingWriteErrorMessage(error, "Failed to create hold"),
+    );
   }
 
   return {
@@ -244,7 +247,11 @@ export async function updateRoomHoldDates(input: {
     .select("id, reference, hold_expires_at, status")
     .single();
 
-  if (error || !data) throw new Error(error?.message || "Failed to update hold");
+  if (error || !data) {
+    throw new Error(
+      bookingWriteErrorMessage(error, "Failed to update hold"),
+    );
+  }
 
   return {
     bookingId: data.id,
