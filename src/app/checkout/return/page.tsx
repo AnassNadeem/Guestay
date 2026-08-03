@@ -23,13 +23,11 @@ type Props = {
 };
 
 /**
- * Safepay browser return — stamps gateway_tracker only.
- * Payment status (paid / partially_paid) is set exclusively by the
- * HMAC-verified webhook. Guests land on /booking-confirmed which polls
- * until the webhook finalizes (or times out).
+ * Safepay / mock browser return.
  *
- * Exception: mock gateway (`?mock=1`) finalizes here so local checkout
- * works without a Safepay webhook delivery.
+ * Testing stage: finalize to paid here after gateway.verifyTracker succeeds.
+ * Webhook (/api/webhooks/safepay) remains as an optional idempotent backup
+ * for production later — it is not required for confirmation right now.
  */
 export default async function CheckoutReturnPage({ searchParams }: Props) {
   const tracker = searchParams.tracker;
@@ -71,27 +69,20 @@ export default async function CheckoutReturnPage({ searchParams }: Props) {
     await updateLocalBooking(b.id, { gatewayTracker: tracker });
   }
 
-  // Local mock gateway only — real Safepay is finalized solely by webhook.
-  const isMock =
-    searchParams.mock === "1" && tracker.startsWith("mock_track_");
-  if (isMock) {
-    const amounts = siblings.map((b) => ({
-      id: b.id,
-      amountPaidPkr: b.subtotalPkr,
-      amountDuePkr: 0,
-    }));
-    const finalized = await finalizeSuccessfulBooking({
-      bookingId: booking.id,
-      status: "paid",
-      amounts,
-      sessionUserId: booking.pendingSessionUserId || null,
-    });
-    const ref = finalized?.reference || booking.reference;
-    const scenario = finalized?.scenario || "new_or_unclaimed";
-    redirect(
-      `/booking-confirmed?ref=${encodeURIComponent(ref)}&scenario=${encodeURIComponent(scenario)}`,
-    );
-  }
-
-  redirect(`/booking-confirmed?tracker=${encodeURIComponent(tracker)}`);
+  const amounts = siblings.map((b) => ({
+    id: b.id,
+    amountPaidPkr: b.subtotalPkr,
+    amountDuePkr: 0,
+  }));
+  const finalized = await finalizeSuccessfulBooking({
+    bookingId: booking.id,
+    status: "paid",
+    amounts,
+    sessionUserId: booking.pendingSessionUserId || null,
+  });
+  const ref = finalized?.reference || booking.reference;
+  const scenario = finalized?.scenario || "new_or_unclaimed";
+  redirect(
+    `/booking-confirmed?ref=${encodeURIComponent(ref)}&scenario=${encodeURIComponent(scenario)}`,
+  );
 }

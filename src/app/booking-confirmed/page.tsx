@@ -59,7 +59,7 @@ export default async function BookingConfirmedPage({ searchParams }: Props) {
   const tracker = searchParams.tracker?.trim();
   const ref = searchParams.ref?.trim();
 
-  // Waiting for webhook finalization after Safepay return.
+  // Legacy tracker-only URL (e.g. mid-poll refresh). Prefer ?ref= after return finalize.
   if (tracker && !ref) {
     const booking = await getLocalBookingByTracker(tracker);
     if (booking && TERMINAL.has(booking.status)) {

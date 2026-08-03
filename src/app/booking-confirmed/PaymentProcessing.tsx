@@ -66,7 +66,7 @@ export function PaymentProcessing({ tracker }: Props) {
             Payment confirmation delayed
           </h1>
           <p className="mt-3 text-ink-muted">
-            We have not received webhook confirmation yet
+            We could not confirm this payment yet
             {lastStatus ? ` (current status: ${lastStatus})` : ""}. If you were
             charged, contact us with your tracker ID — do not pay again.
           </p>

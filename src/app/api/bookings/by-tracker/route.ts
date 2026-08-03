@@ -10,8 +10,8 @@ const TERMINAL = new Set([
 ]);
 
 /**
- * Poll helper for /booking-confirmed while waiting for the Safepay webhook
- * to finalize payment status. Read-only; never writes paid status.
+ * Poll helper for /booking-confirmed when a tracker URL is still open.
+ * Read-only; never writes paid status (return page finalizes in testing).
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);

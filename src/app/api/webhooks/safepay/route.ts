@@ -12,14 +12,15 @@ import { getPaymentGateway } from "@/lib/payments/gateway";
 import { NextResponse } from "next/server";
 
 /**
- * Safepay webhook — the ONLY path that sets Safepay bookings to paid.
- * HMAC required (SAFEPAY_WEBHOOK_SECRET), then verifyTracker, then finalize.
- * Retries are idempotent via finalizeSuccessfulBooking.alreadyFinalized.
+ * Safepay webhook — optional idempotent backup.
  *
- * Dashboard setup:
+ * Testing stage: /checkout/return finalizes paid after verifyTracker.
+ * This endpoint stays for production webhook delivery later; retries are
+ * safe via finalizeSuccessfulBooking.alreadyFinalized.
+ *
+ * Dashboard setup (when re-enabling):
  * 1. Safepay → Developer → Webhooks → endpoint https://<site>/api/webhooks/safepay
  * 2. Copy webhook secret into SAFEPAY_WEBHOOK_SECRET
- * 3. Browser /checkout/return only stamps gateway_tracker and shows processing.
  */
 export async function POST(req: Request) {
   const raw = await req.text();
