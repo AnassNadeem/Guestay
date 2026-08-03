@@ -40,7 +40,8 @@ export function isPhoneVerificationLive(): boolean {
  * Request an SMS OTP. Until Plivo is configured this always returns deferred
  * and must never be invoked from a working "Verify Now" button.
  */
-export async function requestPhoneVerification(_phone: string): Promise<RequestPhoneVerificationResult> {
+export async function requestPhoneVerification(phone: string): Promise<RequestPhoneVerificationResult> {
+  void phone;
   if (!isPhoneVerificationLive()) {
     return {
       ok: false,
@@ -57,9 +58,11 @@ export async function requestPhoneVerification(_phone: string): Promise<RequestP
 }
 
 export async function confirmPhoneVerification(
-  _phone: string,
-  _code: string,
+  phone: string,
+  code: string,
 ): Promise<RequestPhoneVerificationResult> {
+  void phone;
+  void code;
   if (!isPhoneVerificationLive()) {
     return {
       ok: false,

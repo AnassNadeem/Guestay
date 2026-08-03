@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   }
 
   const sb = createServiceSupabase();
-  let roomQuery = sb
+  const roomQuery = sb
     .from("rooms")
     .select("id, slug, name")
     .eq("status", "active");

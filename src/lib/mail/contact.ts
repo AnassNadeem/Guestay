@@ -118,17 +118,33 @@ export async function sendContactEnquiryEmail(
 
 /**
  * Queue the send and return immediately — UI stays snappy.
- * Delivery continues in the background on the Node server.
+ * On Cloudflare Workers, use waitUntil so the isolate stays alive for SMTP.
+ * On local Next, fire-and-forget is fine.
  */
-export function queueContactEnquiryEmail(enquiry: ContactEnquiryMail): void {
-  void sendContactEnquiryEmail(enquiry).then((result) => {
+export async function queueContactEnquiryEmail(
+  enquiry: ContactEnquiryMail,
+): Promise<void> {
+  const promise = sendContactEnquiryEmail(enquiry).then((result) => {
     if (!result.ok) {
       console.error("[contact] background send failed:", result.error, {
         name: enquiry.name,
         email: enquiry.email,
       });
+    } else {
+      console.info("[contact] background send ok", {
+        name: enquiry.name,
+        email: enquiry.email,
+      });
     }
   });
+
+  try {
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+    const { ctx } = getCloudflareContext();
+    ctx.waitUntil(promise);
+  } catch {
+    void promise;
+  }
 }
 
 export function isSmtpConfigured() {

@@ -1,11 +1,38 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, type PlaywrightTestConfig } from "@playwright/test";
 import dotenv from "dotenv";
 import path from "path";
 
 dotenv.config({ path: path.resolve(__dirname, ".env.local") });
 
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+/** Prefer PLAYWRIGHT_BASE_URL for deployed runs; fall back to local site URL. */
+const SITE =
+  process.env.PLAYWRIGHT_BASE_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  "http://localhost:3000";
 const ADMIN = process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3001";
+const isRemoteTarget = !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(
+  SITE,
+);
+
+const webServers: NonNullable<PlaywrightTestConfig["webServer"]> = [];
+
+// Local Next only when not targeting a deployed URL.
+if (!isRemoteTarget) {
+  webServers.push({
+    command: "npm run dev",
+    url: SITE,
+    reuseExistingServer: !process.env.CI,
+    timeout: 180_000,
+  });
+}
+
+// Refine admin stays local (out of OpenNext migration scope).
+webServers.push({
+  command: "npm run dev:admin",
+  url: ADMIN,
+  reuseExistingServer: !process.env.CI,
+  timeout: 180_000,
+});
 
 export default defineConfig({
   testDir: "./e2e",
@@ -29,24 +56,5 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: [
-    {
-      command: "npm run dev",
-      url: SITE,
-      reuseExistingServer: !process.env.CI,
-      timeout: 180_000,
-      env: {
-        ...process.env,
-      },
-    },
-    {
-      command: "npm run dev:admin",
-      url: ADMIN,
-      reuseExistingServer: !process.env.CI,
-      timeout: 180_000,
-      env: {
-        ...process.env,
-      },
-    },
-  ],
+  webServer: webServers,
 });

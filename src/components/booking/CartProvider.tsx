@@ -76,8 +76,10 @@ function loadCart(): CartItem[] {
         new Date(item.holdExpiresAt).getTime() <= Date.now();
       if (!item.bookingId && !item.holdExpiresAt) return item;
       if (expired) {
-        const { bookingId: _b, holdExpiresAt: _h, reference: _r, ...rest } =
-          item;
+        const rest = { ...item };
+        delete rest.bookingId;
+        delete rest.holdExpiresAt;
+        delete rest.reference;
         return rest;
       }
       return item;
@@ -161,8 +163,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) =>
       prev.map((item) => {
         if (item.bookingId) releaseHold(item.bookingId);
-        const { bookingId: _b, holdExpiresAt: _h, reference: _r, ...rest } =
-          item;
+        const rest = { ...item };
+        delete rest.bookingId;
+        delete rest.holdExpiresAt;
+        delete rest.reference;
         return rest;
       }),
     );

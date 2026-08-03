@@ -1,6 +1,7 @@
 import {
   isSmtpConfigured,
   queueContactEnquiryEmail,
+  sendContactEnquiryEmail,
 } from "@/lib/mail/contact";
 import { NextResponse } from "next/server";
 
@@ -68,8 +69,19 @@ export async function POST(request: Request) {
   };
 
   if (isSmtpConfigured()) {
+    // Smoke / verify path: await so the caller learns if Nodemailer succeeded.
+    if (request.headers.get("x-guestay-await-email") === "1") {
+      const result = await sendContactEnquiryEmail(payload);
+      if (!result.ok) {
+        return NextResponse.json(
+          { error: result.error || "Email send failed" },
+          { status: 502 },
+        );
+      }
+      return NextResponse.json({ ok: true, emailed: true });
+    }
     // Don't block the response on Zoho TLS/login — send in the background
-    queueContactEnquiryEmail(payload);
+    await queueContactEnquiryEmail(payload);
     return NextResponse.json({ ok: true });
   }
 

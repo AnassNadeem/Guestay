@@ -1,10 +1,96 @@
-# Cloudflare Pages — Next.js (public site)
-# Build command: npm run build
-# Output: use @cloudflare/next-on-pages or OpenNext adapter at deploy time.
-# For now this documents the intended Pages project.
+# Guestay public site — Next.js via @opennextjs/cloudflare (Workers)
+# Admin Refine SPA (admin/) is a separate Vite app — not deployed by this Worker.
+#
+# Deploy:
+#   npm run deploy              → default workers.dev (uses top-level / production secrets)
+#   npm run deploy:preview      → guestay-web-preview.*.workers.dev
+#   npm run deploy:production   → production Worker (+ custom domain once attached)
+#
+# Secrets (set independently per environment — never share prod credentials with preview):
+#   npx wrangler secret put <NAME>
+#   npx wrangler secret put <NAME> --env preview
+#   npx wrangler secret put <NAME> --env production
+# See .env.example for the full list of secret names.
 
+"$schema" = "./node_modules/wrangler/config-schema.json"
 name = "guestay-web"
-compatibility_date = "2026-07-01"
+main = ".open-next/worker.js"
+compatibility_date = "2026-08-03"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+preview_urls = true
+
+# Custom domain (attached after workers.dev smoke passed — via wrangler.toml)
+[[routes]]
+pattern = "guestay.pk"
+custom_domain = true
+
+[[routes]]
+pattern = "www.guestay.pk"
+custom_domain = true
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# Non-secret defaults for the top-level / workers.dev deploy.
+# Override per named environment below. Secrets are NOT listed here.
+[vars]
+SAFEPAY_ENV = "sandbox"
+BOOKING_HOLD_MINUTES = "10"
+DIRECT_BOOKING_DEPOSIT_DISCOUNT = "0.10"
+GROUP_NO_ADVANCE_MIN_GUESTS = "10"
+NEXT_PUBLIC_HOLD_MINUTES = "10"
+NEXT_PUBLIC_HOLD_GRACE_SECONDS = "60"
+
+# -----------------------------------------------------------------------------
+# Preview — isolated sandbox credentials (set via wrangler secret --env preview)
+# -----------------------------------------------------------------------------
+[env.preview]
+name = "guestay-web-preview"
+compatibility_date = "2026-08-03"
 compatibility_flags = ["nodejs_compat"]
 
-pages_build_output_dir = ".vercel/output/static"
+[env.preview.assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[env.preview.vars]
+SAFEPAY_ENV = "sandbox"
+BOOKING_HOLD_MINUTES = "10"
+DIRECT_BOOKING_DEPOSIT_DISCOUNT = "0.10"
+GROUP_NO_ADVANCE_MIN_GUESTS = "10"
+NEXT_PUBLIC_HOLD_MINUTES = "10"
+NEXT_PUBLIC_HOLD_GRACE_SECONDS = "60"
+# Set after deploy, e.g. https://guestay-web-preview.<account>.workers.dev
+# NEXT_PUBLIC_SITE_URL = "https://guestay-web-preview.YOUR_SUBDOMAIN.workers.dev"
+
+# -----------------------------------------------------------------------------
+# Production — production Safepay/Supabase only (wrangler secret --env production)
+# -----------------------------------------------------------------------------
+[env.production]
+name = "guestay-web"
+compatibility_date = "2026-08-03"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[[env.production.routes]]
+pattern = "guestay.pk"
+custom_domain = true
+
+[[env.production.routes]]
+pattern = "www.guestay.pk"
+custom_domain = true
+
+[env.production.assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[env.production.vars]
+SAFEPAY_ENV = "production"
+BOOKING_HOLD_MINUTES = "10"
+DIRECT_BOOKING_DEPOSIT_DISCOUNT = "0.10"
+GROUP_NO_ADVANCE_MIN_GUESTS = "10"
+NEXT_PUBLIC_HOLD_MINUTES = "10"
+NEXT_PUBLIC_HOLD_GRACE_SECONDS = "60"
+NEXT_PUBLIC_SITE_URL = "https://guestay.pk"

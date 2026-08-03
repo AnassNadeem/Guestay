@@ -40,7 +40,10 @@ yarn-error.log*
 .vercel
 .wrangler
 .dev.vars
+.open-next
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.wrangler-out/

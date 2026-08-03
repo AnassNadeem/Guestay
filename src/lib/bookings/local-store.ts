@@ -448,7 +448,7 @@ export async function updateLocalBooking(
   return rowToLocal(data as DbBookingRow);
 }
 
-export async function expireLocalHolds(_now = Date.now()) {
+export async function expireLocalHolds() {
   const sb = requireSupabase();
   const { data, error } = await sb.rpc("expire_pending_holds");
   if (error) {

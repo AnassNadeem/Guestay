@@ -22,5 +22,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "workers", "admin", "e2e"]
+  "exclude": ["node_modules", "workers", "admin", "e2e", "playwright.config.ts", "scripts"]
 }

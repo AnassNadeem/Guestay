@@ -1,6 +1,8 @@
 /**
  * Soft-retire Next.js /admin — staff UI lives on Refine at admin.guestay.pk.
  */
+export const dynamic = "force-dynamic";
+
 export default function AdminRetiredLayout({
   children,
 }: {
