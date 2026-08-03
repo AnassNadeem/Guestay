@@ -1,0 +1,52 @@
+import { defineConfig, devices } from "@playwright/test";
+import dotenv from "dotenv";
+import path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, ".env.local") });
+
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+const ADMIN = process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3001";
+
+export default defineConfig({
+  testDir: "./e2e",
+  fullyParallel: false,
+  workers: 1,
+  retries: 0,
+  timeout: 10 * 60 * 1000,
+  expect: { timeout: 30_000 },
+  reporter: [["list"], ["html", { open: "never" }]],
+  use: {
+    baseURL: SITE,
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    actionTimeout: 20_000,
+    navigationTimeout: 60_000,
+  },
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
+  webServer: [
+    {
+      command: "npm run dev",
+      url: SITE,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        ...process.env,
+      },
+    },
+    {
+      command: "npm run dev:admin",
+      url: ADMIN,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        ...process.env,
+      },
+    },
+  ],
+});
