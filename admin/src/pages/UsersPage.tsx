@@ -251,9 +251,19 @@ export function UsersPage() {
         method: "DELETE",
         headers: await adminAuthHeaders(),
       });
-      const data = await readApiJson(res);
+      const data = (await readApiJson(res)) as {
+        error?: string;
+        message?: string;
+        demoted?: boolean;
+        deleted?: boolean;
+      };
       if (!res.ok) throw new Error(readApiError(data, "Delete failed", res.status));
-      setActionOk("User deleted");
+      setActionOk(
+        data.message ||
+          (data.demoted
+            ? "Removed from staff. Guest account kept for booking history."
+            : "User deleted"),
+      );
       setModal(null);
       await loadUsers();
     } catch (err) {
@@ -581,30 +591,22 @@ export function UsersPage() {
         <div className="modal-overlay" onClick={() => setModal(null)}>
           <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h2 style={{ margin: 0 }}>Delete user?</h2>
+              <h2 style={{ margin: 0 }}>Remove staff user?</h2>
               <button type="button" className="btn secondary icon-btn" onClick={() => setModal(null)} aria-label="Close">
                 <XIcon size={18} />
               </button>
             </div>
             <p style={{ fontSize: 14, color: "#6b6b60", lineHeight: 1.5 }}>
-              Are you sure you want to permanently delete{" "}
-              <strong>{selected.email}</strong>? This cannot be undone.
+              Remove <strong>{selected.email}</strong> from staff.
+              If this email also has guest bookings on the storefront, the
+              account is kept as a guest so booking history is not lost.
+              Otherwise the account is permanently deleted.
             </p>
             {actionError && <p style={{ color: "#B42318", fontSize: 13 }}>{actionError}</p>}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
               <button type="button" className="btn secondary" onClick={() => setModal(null)}>
                 Cancel
               </button>
-              {actionError?.toLowerCase().includes("deactivate") && (
-                <button
-                  type="button"
-                  className="btn secondary"
-                  onClick={deactivateInstead}
-                  disabled={busy}
-                >
-                  {busy ? "Working…" : "Deactivate instead"}
-                </button>
-              )}
               <button
                 type="button"
                 className="btn"
@@ -612,7 +614,7 @@ export function UsersPage() {
                 onClick={confirmDelete}
                 disabled={busy}
               >
-                {busy ? "Deleting…" : "Yes, delete"}
+                {busy ? "Removing…" : "Remove from staff"}
               </button>
             </div>
           </div>

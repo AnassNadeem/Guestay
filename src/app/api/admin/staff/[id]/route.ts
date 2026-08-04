@@ -193,9 +193,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
 }
 
 /**
- * Owner-only: permanently delete a staff user (auth + profile).
- * If the user is referenced by bookings/refunds/etc, hard-delete is blocked
- * with a clear message (use Deactivate instead).
+ * Owner-only: remove a staff user.
+ * - If the profile has guest bookings/refunds (same account used on the storefront),
+ *   demote role to `guest` so booking history stays intact and they leave the Users list.
+ * - Otherwise hard-delete auth + profile.
  */
 export async function DELETE(req: Request, ctx: Ctx) {
   try {
@@ -252,13 +253,13 @@ export async function DELETE(req: Request, ctx: Ctx) {
       if ((count ?? 0) < 1 && !existing.is_suspended) {
         return jsonWithAdminCors(
           req,
-          { error: "Cannot delete the last active admin" },
+          { error: "Cannot remove the last active admin" },
           { status: 400 },
         );
       }
     }
 
-    // Block hard-delete when other tables still reference this profile.
+    // Same auth profile may also be a storefront guest with booking history.
     const [{ count: bookingRefs }, { count: refundRefs }, { count: orderRefs }] =
       await Promise.all([
         sb
@@ -277,15 +278,40 @@ export async function DELETE(req: Request, ctx: Ctx) {
 
     const linked =
       (bookingRefs ?? 0) + (refundRefs ?? 0) + (orderRefs ?? 0);
+
     if (linked > 0) {
-      return jsonWithAdminCors(
-        req,
-        {
-          error:
-            "This user is linked to bookings or refunds, so they cannot be permanently deleted. Deactivate the account instead.",
+      // Keep the account for guest history; just revoke staff access.
+      const { error: demoteErr } = await sb
+        .from("profiles")
+        .update({
+          role: "guest",
+          is_suspended: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (demoteErr) {
+        return jsonWithAdminCors(
+          req,
+          { error: demoteErr.message || "Could not remove staff access" },
+          { status: 500 },
+        );
+      }
+
+      await sb.auth.admin.updateUserById(id, {
+        user_metadata: {
+          guestay_staff_invite: false,
+          guestay_unclaimed: false,
         },
-        { status: 409 },
-      );
+      });
+
+      return jsonWithAdminCors(req, {
+        ok: true,
+        id,
+        demoted: true,
+        message:
+          "Removed from staff. This account also has guest bookings, so it was kept as a guest account.",
+      });
     }
 
     const { error: delAuthErr } = await sb.auth.admin.deleteUser(id);
@@ -294,21 +320,30 @@ export async function DELETE(req: Request, ctx: Ctx) {
         delAuthErr.message ||
         (delAuthErr as { error_description?: string }).error_description ||
         "Could not delete auth user";
-      // Common when FKs still block cascade
       if (/foreign key|violates|restrict|reference/i.test(msg)) {
-        return jsonWithAdminCors(
-          req,
-          {
-            error:
-              "This user is still referenced by other records. Deactivate the account instead of deleting.",
-          },
-          { status: 409 },
-        );
+        // Fallback: demote instead of failing hard.
+        const { error: demoteErr } = await sb
+          .from("profiles")
+          .update({
+            role: "guest",
+            is_suspended: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id);
+        if (demoteErr) {
+          return jsonWithAdminCors(req, { error: msg }, { status: 500 });
+        }
+        return jsonWithAdminCors(req, {
+          ok: true,
+          id,
+          demoted: true,
+          message:
+            "Removed from staff. The account was kept because other records still reference it.",
+        });
       }
       return jsonWithAdminCors(req, { error: msg }, { status: 500 });
     }
 
-    // Profile usually cascades from auth.users; clean up if it remains.
     const { error: delProfileErr } = await sb
       .from("profiles")
       .delete()
@@ -325,7 +360,12 @@ export async function DELETE(req: Request, ctx: Ctx) {
       );
     }
 
-    return jsonWithAdminCors(req, { ok: true, id });
+    return jsonWithAdminCors(req, {
+      ok: true,
+      id,
+      deleted: true,
+      message: "User permanently deleted",
+    });
   } catch (err) {
     console.error("[admin/staff DELETE]", err);
     return jsonWithAdminCors(
