@@ -279,30 +279,6 @@ export function UsersPage() {
     }
   }
 
-  async function deactivateInstead() {
-    if (!selected) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      const res = await fetch(`${SITE_URL}/api/admin/staff/${selected.id}`, {
-        method: "PATCH",
-        headers: await adminAuthHeaders(),
-        body: JSON.stringify({ status: "inactive" }),
-      });
-      const data = await readApiJson(res);
-      if (!res.ok) {
-        throw new Error(readApiError(data, "Deactivate failed", res.status));
-      }
-      setActionOk("User deactivated");
-      setModal(null);
-      await loadUsers();
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Deactivate failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
