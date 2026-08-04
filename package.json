@@ -7,6 +7,7 @@
     "dev:admin": "npm --prefix admin run dev",
     "build": "next build",
     "build:admin": "npm --prefix admin run build",
+    "deploy:admin": "npm --prefix admin run build && npm --prefix admin run deploy",
     "start": "next start",
     "lint": "next lint",
     "expire-holds": "curl -X POST http://localhost:3000/api/cron/expire-holds",

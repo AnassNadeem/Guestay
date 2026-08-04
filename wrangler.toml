@@ -1,5 +1,5 @@
 # Guestay public site — Next.js via @opennextjs/cloudflare (Workers)
-# Admin Refine SPA (admin/) is a separate Vite app — not deployed by this Worker.
+# Admin Refine SPA lives in admin/ — deploy separately: npm run deploy:admin → admin.guestay.pk
 #
 # Deploy:
 #   npm run deploy              → default workers.dev (uses top-level / production secrets)
@@ -48,6 +48,7 @@ NEXT_PUBLIC_HOLD_MINUTES = "10"
 NEXT_PUBLIC_HOLD_GRACE_SECONDS = "60"
 # Public site origin for Safepay return/cancel URLs (top-level / sandbox Worker).
 NEXT_PUBLIC_SITE_URL = "https://guestay.pk"
+NEXT_PUBLIC_ADMIN_URL = "https://admin.guestay.pk"
 
 # -----------------------------------------------------------------------------
 # Preview — isolated sandbox credentials (set via wrangler secret --env preview)
@@ -108,3 +109,4 @@ GROUP_NO_ADVANCE_MIN_GUESTS = "10"
 NEXT_PUBLIC_HOLD_MINUTES = "10"
 NEXT_PUBLIC_HOLD_GRACE_SECONDS = "60"
 NEXT_PUBLIC_SITE_URL = "https://guestay.pk"
+NEXT_PUBLIC_ADMIN_URL = "https://admin.guestay.pk"
