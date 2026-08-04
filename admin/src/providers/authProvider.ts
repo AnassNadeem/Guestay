@@ -1,18 +1,37 @@
 import type { AuthProvider } from "@refinedev/core";
 import { supabase } from "../supabase";
 
-async function loadProfileRole(userId: string): Promise<string> {
-  if (!supabase) return "manager";
+type StaffProfile = {
+  role: string;
+  full_name?: string | null;
+  email?: string | null;
+  is_suspended?: boolean | null;
+};
+
+async function loadStaffProfile(userId: string): Promise<StaffProfile | null> {
+  if (!supabase) return null;
   const { data } = await supabase
     .from("profiles")
-    .select("role, full_name, email")
+    .select("role, full_name, email, is_suspended")
     .eq("id", userId)
     .maybeSingle();
-  return (data?.role as string) || "manager";
+  return data as StaffProfile | null;
+}
+
+function isStaffRole(role: string | undefined | null): boolean {
+  return role === "owner" || role === "manager";
+}
+
+async function touchLastLogin(userId: string) {
+  if (!supabase) return;
+  await supabase
+    .from("profiles")
+    .update({ last_login_at: new Date().toISOString() })
+    .eq("id", userId);
 }
 
 export const authProvider: AuthProvider = {
-  login: async ({ email, password }) => {
+  login: async ({ email, password, redirectTo }) => {
     if (!supabase) {
       return {
         success: false,
@@ -23,28 +42,65 @@ export const authProvider: AuthProvider = {
       };
     }
 
+    const trimmedEmail = String(email || "").trim().toLowerCase();
+    if (!trimmedEmail || !password) {
+      return {
+        success: false,
+        error: {
+          name: "ValidationError",
+          message: "Email and password are required",
+        },
+      };
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: trimmedEmail,
       password,
     });
     if (error) return { success: false, error };
 
-    const role = data.user ? await loadProfileRole(data.user.id) : "guest";
-    if (role !== "owner" && role !== "manager") {
+    const profile = data.user ? await loadStaffProfile(data.user.id) : null;
+    const role = profile?.role || "guest";
+
+    if (!isStaffRole(role)) {
       await supabase.auth.signOut();
       return {
         success: false,
         error: {
           name: "Forbidden",
-          message: "This account is not staff. Owner/manager role required.",
+          message: "This account is not staff. Admin or manager role required.",
         },
       };
     }
 
-    return { success: true, redirectTo: "/" };
+    if (profile?.is_suspended) {
+      await supabase.auth.signOut();
+      return {
+        success: false,
+        error: {
+          name: "Forbidden",
+          message: "This account has been deactivated. Contact an admin.",
+        },
+      };
+    }
+
+    if (data.user) {
+      void touchLastLogin(data.user.id);
+    }
+
+    const safeRedirect =
+      typeof redirectTo === "string" &&
+      redirectTo.startsWith("/") &&
+      !redirectTo.startsWith("//")
+        ? redirectTo
+        : "/";
+
+    return { success: true, redirectTo: safeRedirect };
   },
   logout: async () => {
     await supabase?.auth.signOut();
+    localStorage.removeItem("guestay_admin_user");
+    localStorage.removeItem("guestay_admin_idle_reset");
     return { success: true, redirectTo: "/login" };
   },
   check: async () => {
@@ -55,8 +111,8 @@ export const authProvider: AuthProvider = {
     if (!data.session) {
       return { authenticated: false, redirectTo: "/login", logout: true };
     }
-    const role = await loadProfileRole(data.session.user.id);
-    if (role !== "owner" && role !== "manager") {
+    const profile = await loadStaffProfile(data.session.user.id);
+    if (!isStaffRole(profile?.role) || profile?.is_suspended) {
       await supabase.auth.signOut();
       return { authenticated: false, redirectTo: "/login", logout: true };
     }
@@ -67,11 +123,7 @@ export const authProvider: AuthProvider = {
     const { data } = await supabase.auth.getUser();
     const user = data.user;
     if (!user) return null;
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, full_name, email")
-      .eq("id", user.id)
-      .maybeSingle();
+    const profile = await loadStaffProfile(user.id);
     return {
       id: user.id,
       name: profile?.full_name || user.email,
@@ -83,7 +135,8 @@ export const authProvider: AuthProvider = {
     if (!supabase) return null;
     const { data } = await supabase.auth.getUser();
     if (!data.user) return null;
-    return loadProfileRole(data.user.id);
+    const profile = await loadStaffProfile(data.user.id);
+    return profile?.role || null;
   },
   onError: async (error) => ({ error }),
 };

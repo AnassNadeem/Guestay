@@ -2,7 +2,14 @@ import { Refine, Authenticated } from "@refinedev/core";
 import routerProvider from "@refinedev/react-router-v6";
 import { dataProvider } from "./providers/dataProvider";
 import { authProvider } from "./providers/authProvider";
-import { BrowserRouter, Outlet, Route, Routes, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Outlet,
+  Route,
+  Routes,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { AdminLayout } from "./layout/AdminLayout";
 import { DashboardPage } from "./pages/DashboardPage";
 import { BookingsPage } from "./pages/BookingsPage";
@@ -18,6 +25,16 @@ import { WalkInPage } from "./pages/WalkInPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { LoginPage } from "./pages/LoginPage";
+
+function AuthFallback() {
+  const location = useLocation();
+  const next = `${location.pathname}${location.search}`;
+  const to =
+    next && next !== "/"
+      ? `/login?next=${encodeURIComponent(next)}`
+      : "/login";
+  return <Navigate to={to} replace />;
+}
 
 export function App() {
   return (
@@ -47,7 +64,7 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route
             element={
-              <Authenticated key="auth" fallback={<Navigate to="/login" />}>
+              <Authenticated key="auth" fallback={<AuthFallback />}>
                 <AdminLayout>
                   <Outlet />
                 </AdminLayout>

@@ -21,6 +21,7 @@ import {
   BellIcon,
   ExternalLinkIcon,
 } from "../components/icons";
+import { IdleSessionGuard } from "../components/IdleSessionGuard";
 
 type NavItem = {
   to: string;
@@ -35,12 +36,12 @@ const NAV: NavItem[] = [
   { to: "/calendar", label: "Calendar", icon: CalendarIcon },
   { to: "/bookings", label: "Bookings", icon: BookingsIcon },
   { to: "/rooms", label: "Rooms", icon: RoomsIcon },
-  { to: "/guests", label: "Guests / CRM", icon: GuestsIcon },
+  { to: "/guests", label: "Guests", icon: GuestsIcon },
   { to: "/analytics", label: "Analytics", icon: AnalyticsIcon, ownerOnly: true },
   { to: "/refunds", label: "Refund Requests", icon: RefundsIcon },
   { to: "/ota", label: "OTA Sync", icon: OtaIcon },
   { to: "/walk-in", label: "Walk-in", icon: WalkInIcon },
-  { to: "/users", label: "Staff / Users", icon: StaffIcon, ownerOnly: true },
+  { to: "/users", label: "Users", icon: StaffIcon, ownerOnly: true },
   { to: "/audit-log", label: "Audit Log", icon: AuditIcon, ownerOnly: true },
   { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
@@ -146,6 +147,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`admin-shell ${collapsed ? "collapsed" : ""}`}>
+      <IdleSessionGuard />
       <aside className="sidebar">
         <div className="sidebar-head">
           {!collapsed && (
@@ -368,6 +370,13 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   <div className="profile-head">
                     <div style={{ fontWeight: 600 }}>{identity?.name || "Staff"}</div>
                     <div className="muted">{identity?.email}</div>
+                    <div className="muted" style={{ marginTop: 4, fontSize: 12 }}>
+                      {identity?.role === "owner"
+                        ? "Admin"
+                        : identity?.role === "manager"
+                          ? "Manager"
+                          : identity?.role || ""}
+                    </div>
                   </div>
                   <button
                     type="button"
