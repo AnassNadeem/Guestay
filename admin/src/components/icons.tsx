@@ -234,3 +234,49 @@ export function CheckIcon(p: IconProps) {
     </svg>
   );
 }
+
+export function PencilIcon(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+    </svg>
+  );
+}
+
+export function TrashIcon(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+    </svg>
+  );
+}
+
+export function UserCheckIcon(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M16 11l2 2 4-4" />
+    </svg>
+  );
+}
+
+export function UserXIcon(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M17 8l5 5M22 8l-5 5" />
+    </svg>
+  );
+}
+
+export function EyeViewIcon(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}

@@ -186,23 +186,37 @@ h3 {
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.65rem;
   margin-bottom: 1.25rem;
 }
 
 .kpi {
   background: #fff;
-  border-radius: 14px;
-  padding: 1rem;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
   border: 1px solid rgba(59, 68, 48, 0.1);
+  min-width: 0;
+}
+
+.kpi span {
+  font-size: 0.75rem;
+  line-height: 1.25;
+  color: #6b6b60;
 }
 
 .kpi strong {
   display: block;
-  font-size: 1.4rem;
+  font-size: 1.15rem;
   font-family: "Space Grotesk", system-ui, sans-serif;
   color: var(--olive);
+  margin-top: 0.2rem;
+}
+
+@media (min-width: 1100px) {
+  .kpi-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
 }
 
 .btn {
@@ -580,6 +594,100 @@ h3 {
   font-family: inherit;
   font-size: 0.88rem;
   background: #fff;
+}
+
+.table-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(59, 68, 48, 0.08);
+}
+
+.table-pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b6b60;
+}
+
+.table-pagination-left select {
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 68, 48, 0.2);
+  padding: 0 8px;
+  background: #fff;
+  font-family: inherit;
+}
+
+.table-pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.table.compact th,
+.table.compact td {
+  padding: 0.55rem 0.45rem;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.table.compact td.wrap {
+  white-space: normal;
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.row-actions .icon-btn {
+  height: 30px;
+  width: 30px;
+}
+
+.card-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.card-toolbar-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-left: auto;
+}
+
+.card-toolbar-filters select,
+.card-toolbar-filters input[type="date"] {
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 68, 48, 0.2);
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: #fff;
+}
+
+.photo-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .modal-overlay {
