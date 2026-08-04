@@ -2,14 +2,21 @@ import {
   finalizeSuccessfulBooking,
   getOrderBookings,
 } from "@/lib/bookings/confirm";
+import { releaseRoomHold } from "@/lib/bookings/holds";
 import {
   getLocalBooking,
   getLocalBookingByTracker,
   updateLocalBooking,
+  upsertPaymentForBooking,
 } from "@/lib/bookings/local-store";
 import { verifySafepayWebhookSignature } from "@/lib/payments/safepay-webhook";
 import { getPaymentGateway } from "@/lib/payments/gateway";
 import { NextResponse } from "next/server";
+
+const FAILED_EVENT_TYPES = new Set([
+  "payment.failed",
+  "payment.rejected",
+]);
 
 /**
  * Safepay webhook — optional idempotent backup.
@@ -22,7 +29,27 @@ import { NextResponse } from "next/server";
  * 1. Safepay → Developer → Webhooks → endpoint https://<site>/api/webhooks/safepay
  * 2. Copy webhook secret into SAFEPAY_WEBHOOK_SECRET
  */
+/** Opt-in header dump — set SAFEPAY_WEBHOOK_DEBUG_HEADERS=1 on the worker. */
+function logIncomingWebhookHeaders(req: Request) {
+  if (process.env.SAFEPAY_WEBHOOK_DEBUG_HEADERS !== "1") return;
+  const sensitiveName =
+    /secret|token|auth|key|cookie|password|credential|api[-_]?key/i;
+  const dump: Record<string, string> = {};
+  req.headers.forEach((value, name) => {
+    if (sensitiveName.test(name)) {
+      dump[name] = value ? `[redacted len=${value.length}]` : "";
+      return;
+    }
+    dump[name] =
+      value.length > 200 ? `${value.slice(0, 120)}…[truncated len=${value.length}]` : value;
+  });
+  console.info("[safepay webhook] DIAG_HEADERS", dump);
+}
+
 export async function POST(req: Request) {
+  // Diagnostic: log ALL headers before any signature logic (Step 1).
+  logIncomingWebhookHeaders(req);
+
   const raw = await req.text();
   const secret = process.env.SAFEPAY_WEBHOOK_SECRET?.trim();
 
@@ -71,26 +98,27 @@ export async function POST(req: Request) {
     | undefined;
   const data = payload.data as Record<string, unknown> | undefined;
 
+  const eventType =
+    (typeof payload.type === "string" && payload.type) ||
+    (typeof payload.event === "string" && payload.event) ||
+    (typeof notification?.type === "string" && notification.type) ||
+    (typeof data?.type === "string" && data.type) ||
+    "";
+
   const tracker =
     (payload.tracker as string) ||
     (notification?.tracker as string) ||
     (data?.tracker as string) ||
     (data?.token as string);
 
-  console.info("[safepay webhook]", { tracker, keys: Object.keys(payload) });
+  console.info("[safepay webhook]", {
+    eventType: eventType || null,
+    tracker,
+    keys: Object.keys(payload),
+  });
 
   if (!tracker) {
     return NextResponse.json({ received: true, updated: false });
-  }
-
-  const gateway = getPaymentGateway();
-  const verified = await gateway.verifyTracker(tracker);
-  if (!verified.success) {
-    return NextResponse.json({
-      received: true,
-      updated: false,
-      verified: false,
-    });
   }
 
   let booking = await getLocalBookingByTracker(tracker);
@@ -105,6 +133,65 @@ export async function POST(req: Request) {
 
   if (!booking) {
     return NextResponse.json({ received: true, updated: false });
+  }
+
+  if (FAILED_EVENT_TYPES.has(eventType)) {
+    const siblings = await getOrderBookings(booking);
+    const alreadyReleased = siblings.every(
+      (b) => b.status !== "pending_hold",
+    );
+
+    if (alreadyReleased) {
+      console.info("[safepay webhook] payment failed — hold already released", {
+        eventType,
+        tracker,
+        bookingId: booking.id,
+        statuses: siblings.map((b) => b.status),
+      });
+      return NextResponse.json({
+        received: true,
+        updated: false,
+        alreadyReleased: true,
+      });
+    }
+
+    for (const b of siblings) {
+      if (b.status !== "pending_hold") continue;
+      await releaseRoomHold(b.id);
+      if (b.gatewayTracker || tracker) {
+        await upsertPaymentForBooking({
+          bookingId: b.id,
+          orderId: b.orderId,
+          amountPkr: b.subtotalPkr,
+          tracker: b.gatewayTracker || tracker,
+          kind: b.paymentKind === "half" ? "deposit" : "full",
+          status: "failed",
+        });
+      }
+    }
+
+    console.info("[safepay webhook] payment failed — hold released", {
+      eventType,
+      tracker,
+      bookingId: booking.id,
+      siblingIds: siblings.map((b) => b.id),
+    });
+
+    return NextResponse.json({
+      received: true,
+      updated: true,
+      released: true,
+    });
+  }
+
+  const gateway = getPaymentGateway();
+  const verified = await gateway.verifyTracker(tracker);
+  if (!verified.success) {
+    return NextResponse.json({
+      received: true,
+      updated: false,
+      verified: false,
+    });
   }
 
   const siblings = await getOrderBookings(booking);
