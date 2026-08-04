@@ -1,18 +1,26 @@
 import { requireStaffRole } from "@/lib/auth/requireStaffRole";
+import {
+  adminCorsPreflight,
+  applyAdminCors,
+  jsonWithAdminCors,
+} from "@/lib/auth/adminCors";
 import { createWalkInBooking } from "@/lib/bookings/local-store";
 import { getRoomBySlug } from "@/lib/mock";
 import type { BookingMode } from "@/types";
-import { NextResponse } from "next/server";
+
+export async function OPTIONS(req: Request) {
+  return adminCorsPreflight(req);
+}
 
 export async function POST(req: Request) {
   const auth = await requireStaffRole(req, ["owner", "manager"]);
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return applyAdminCors(req, auth.response);
 
   try {
     const body = await req.json();
     const room = await getRoomBySlug(body.roomSlug);
     if (!room) {
-      return NextResponse.json({ error: "Room not found" }, { status: 404 });
+      return jsonWithAdminCors(req, { error: "Room not found" }, { status: 404 });
     }
     const booking = await createWalkInBooking({
       roomSlug: room.slug,
@@ -27,9 +35,10 @@ export async function POST(req: Request) {
       amountCollectedPkr: Number(body.amountCollectedPkr) || 0,
       notes: body.notes,
     });
-    return NextResponse.json({ booking });
+    return jsonWithAdminCors(req, { booking });
   } catch (e) {
-    return NextResponse.json(
+    return jsonWithAdminCors(
+      req,
       { error: e instanceof Error ? e.message : "Failed" },
       { status: 400 },
     );

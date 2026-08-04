@@ -54,7 +54,7 @@ export async function requireStaffRole(
 
     const { data: profile, error: profileError } = await sb
       .from("profiles")
-      .select("role")
+      .select("role, is_suspended")
       .eq("id", userData.user.id)
       .maybeSingle();
 
@@ -62,6 +62,16 @@ export async function requireStaffRole(
       return {
         ok: false,
         response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+      };
+    }
+
+    if (profile.is_suspended) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "Account deactivated" },
+          { status: 403 },
+        ),
       };
     }
 

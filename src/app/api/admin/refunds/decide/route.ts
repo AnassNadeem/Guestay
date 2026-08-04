@@ -1,16 +1,24 @@
 import { getLocalBooking, updateLocalBooking } from "@/lib/bookings/local-store";
 import { requireStaffRole } from "@/lib/auth/requireStaffRole";
+import {
+  adminCorsPreflight,
+  applyAdminCors,
+  jsonWithAdminCors,
+} from "@/lib/auth/adminCors";
 import { createServiceSupabase, hasSupabase } from "@/lib/supabase/client";
-import { NextResponse } from "next/server";
 
 /**
  * Owner-only refund decision.
  * Manual process: updates ticket status + email only.
  * Does NOT call Safepay refund API — Owner refunds in Safepay dashboard.
  */
+export async function OPTIONS(req: Request) {
+  return adminCorsPreflight(req);
+}
+
 export async function POST(req: Request) {
   const auth = await requireStaffRole(req, ["owner"]);
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return applyAdminCors(req, auth.response);
 
   const body = await req.json();
   const { ticketId, decision, ownerNote, amountPkr, bookingId } = body as {
@@ -22,7 +30,8 @@ export async function POST(req: Request) {
   };
 
   if (!hasSupabase()) {
-    return NextResponse.json(
+    return jsonWithAdminCors(
+      req,
       { error: "Supabase is not configured" },
       { status: 503 },
     );
@@ -67,7 +76,7 @@ export async function POST(req: Request) {
         }).catch(() => undefined);
       }
     }
-    return NextResponse.json({
+    return jsonWithAdminCors(req, {
       status: "denied",
       ownerNote: ownerNote || null,
       ticketId,
@@ -106,7 +115,7 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({
+  return jsonWithAdminCors(req, {
     status,
     ticketId,
   });
