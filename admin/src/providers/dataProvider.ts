@@ -1,4 +1,5 @@
 import type { BaseRecord, DataProvider } from "@refinedev/core";
+import { SITE_URL } from "../lib/format";
 import { supabase } from "../supabase";
 
 function requireClient() {
@@ -742,5 +743,5 @@ export const dataProvider = {
     return { data: data as TData };
   },
 
-  getApiUrl: () => import.meta.env.VITE_SITE_URL || "http://localhost:3000",
+  getApiUrl: () => SITE_URL,
 } as DataProvider;

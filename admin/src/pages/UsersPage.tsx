@@ -256,7 +256,13 @@ export function UsersPage() {
       setModal(null);
       await loadUsers();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Delete failed");
+      const msg =
+        err instanceof TypeError
+          ? `Could not reach the API (${SITE_URL}). Check that the site is deployed and VITE_SITE_URL is set.`
+          : err instanceof Error
+            ? err.message
+            : "Delete failed";
+      setActionError(msg);
     } finally {
       setBusy(false);
     }

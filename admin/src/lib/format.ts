@@ -1,7 +1,19 @@
-export const SITE_URL =
-  (import.meta.env.VITE_SITE_URL as string | undefined) ||
-  (import.meta.env.NEXT_PUBLIC_SITE_URL as string | undefined) ||
-  "http://localhost:3000";
+const PROD_SITE = "https://guestay.pk";
+
+/**
+ * Public site origin for admin → guestay.pk API calls.
+ * Vite bakes this at build time; production builds must never fall back to localhost.
+ */
+export const SITE_URL = (() => {
+  const fromEnv =
+    (import.meta.env.VITE_SITE_URL as string | undefined)?.trim() ||
+    (import.meta.env.NEXT_PUBLIC_SITE_URL as string | undefined)?.trim();
+  if (fromEnv && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(fromEnv)) {
+    return fromEnv.replace(/\/$/, "");
+  }
+  if (import.meta.env.PROD) return PROD_SITE;
+  return fromEnv?.replace(/\/$/, "") || "http://localhost:3000";
+})();
 
 export const SOURCE_LABEL: Record<string, string> = {
   direct: "Direct",
