@@ -90,7 +90,7 @@ async function sendWithZoho(opts: {
  * Prefer Resend for noreply@ (matches Supabase Auth SMTP setup).
  * Falls back to Zoho if noreply is an alias on the bookings mailbox.
  */
-async function sendNoreplyMail(opts: {
+export async function sendNoreplyMail(opts: {
   to: string;
   subject: string;
   text: string;
