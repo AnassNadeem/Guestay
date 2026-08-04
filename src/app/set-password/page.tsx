@@ -16,6 +16,10 @@ function SetPasswordInner() {
   const router = useRouter();
   const email = params.get("email")?.trim() ?? "";
   const token = params.get("token")?.trim() ?? "";
+  const forStaff = params.get("for") === "staff";
+  const adminUrl = (
+    process.env.NEXT_PUBLIC_ADMIN_URL || "https://admin.guestay.pk"
+  ).replace(/\/$/, "");
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -80,18 +84,23 @@ function SetPasswordInner() {
           Password saved
         </h1>
         <p className="mt-2 text-center text-sm text-ink-muted">
-          Your account is ready. Sign in to open My Account and manage your
-          booking.
+          {forStaff
+            ? "Your staff account is ready. Sign in on the admin portal to continue."
+            : "Your account is ready. Sign in to open My Account and manage your booking."}
         </p>
         <button
           type="button"
           onClick={() => {
+            if (forStaff) {
+              window.location.href = `${adminUrl}/login`;
+              return;
+            }
             router.push(`/login?email=${encodeURIComponent(email)}`);
             router.refresh();
           }}
           className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-soft bg-olive text-sm font-medium text-cream-50"
         >
-          Sign in
+          {forStaff ? "Go to Admin login" : "Sign in"}
         </button>
       </Shell>
     );
