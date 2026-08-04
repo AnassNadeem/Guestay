@@ -2,6 +2,7 @@ import { useList } from "@refinedev/core";
 import { CopyField } from "../components/CopyField";
 import { adminAuthHeaders } from "../lib/adminAuthHeaders";
 import { SITE_URL, SOURCE_LABEL } from "../lib/format";
+import { usePageMeta } from "../hooks/usePageMeta";
 
 const IMPORT_TIP =
   "Import runs automatically every 15 minutes, pulling reservations from the OTA's iCal feed so your calendar stays blocked.";
@@ -13,6 +14,7 @@ function slugify(name: string) {
 }
 
 export function OtaPage() {
+  usePageMeta("OTA Sync", "Channel sync feeds and resync tools");
   const { data, refetch } = useList({ resource: "ota" });
 
   async function forceResync(id: string) {
@@ -52,7 +54,7 @@ export function OtaPage() {
             </p>
             <p style={{ margin: "8px 0 0", color: "#6b6b60", fontSize: 14 }}>
               Channel feeds (Airbnb / Booking.com) are not configured. Full OTA
-              sync is still deferred — this page will list real feeds from{" "}
+              sync is still deferred - this page will list real feeds from{" "}
               <code>ota_feeds</code> once they exist. No placeholder data is shown.
             </p>
           </div>

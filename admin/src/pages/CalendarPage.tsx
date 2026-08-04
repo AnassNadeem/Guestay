@@ -3,11 +3,12 @@ import { useMemo, useState } from "react";
 import { CopyField } from "../components/CopyField";
 import { ChevronLeftIcon, ChevronRightIcon, XIcon } from "../components/icons";
 import { SITE_URL, SOURCE_COLOR, SOURCE_LABEL } from "../lib/format";
+import { usePageMeta } from "../hooks/usePageMeta";
 
 const OCC_LEGEND = [
-  { color: "#7d9b6a", label: "Mostly free (0–33%)" },
-  { color: "#c4a35a", label: "Filling up (34–66%)" },
-  { color: "#b45a4a", label: "Mostly full (67–100%)" },
+  { color: "#7d9b6a", label: "Mostly free (0-33%)" },
+  { color: "#c4a35a", label: "Filling up (34-66%)" },
+  { color: "#b45a4a", label: "Mostly full (67-100%)" },
 ];
 
 function ymd(d: Date) {
@@ -15,6 +16,7 @@ function ymd(d: Date) {
 }
 
 export function CalendarPage() {
+  usePageMeta("Calendar", "Occupancy heatmap and booking timeline");
   const { data: bookings } = useList({ resource: "bookings" });
   const { data: rooms } = useList({ resource: "rooms" });
   const [view, setView] = useState<"heatmap" | "timeline">("heatmap");

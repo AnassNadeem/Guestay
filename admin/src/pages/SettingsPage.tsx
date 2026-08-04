@@ -1,5 +1,6 @@
 import { useGetIdentity } from "@refinedev/core";
 import { useState } from "react";
+import { usePageMeta } from "../hooks/usePageMeta";
 
 type Identity = {
   name?: string;
@@ -17,6 +18,7 @@ function initials(name?: string, email?: string) {
 }
 
 export function SettingsPage() {
+  usePageMeta("Settings", "Manage your Guestay Admin account");
   const { data: identity } = useGetIdentity<Identity>();
   const [name, setName] = useState(identity?.name || "");
   const [saved, setSaved] = useState(false);
@@ -24,7 +26,7 @@ export function SettingsPage() {
   const firstLast =
     [identity?.firstName, identity?.lastName].filter(Boolean).join(" ") ||
     identity?.name ||
-    "—";
+    "-";
 
   return (
     <div className="centered-page">
@@ -64,7 +66,7 @@ export function SettingsPage() {
 
         <label className="field">
           Email
-          <input value={identity?.email || "—"} readOnly />
+          <input value={identity?.email || "-"} readOnly />
         </label>
 
         <label className="field">

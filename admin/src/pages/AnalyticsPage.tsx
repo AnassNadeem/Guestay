@@ -17,6 +17,7 @@ import {
   Legend,
 } from "recharts";
 import { useRole } from "../hooks/useRole";
+import { usePageMeta } from "../hooks/usePageMeta";
 import { useRevenueVisibility } from "../hooks/useRevenueVisibility";
 import {
   SOURCE_COLOR,
@@ -62,7 +63,8 @@ const PAYMENT_METHOD: Record<string, string> = {
 const PAYMENT_COLORS = ["#3B4430", "#A6AC7E", "#FF5A5F", "#003580"];
 
 export function AnalyticsPage() {
-  const { canSeeAnalytics } = useRole();
+  usePageMeta("Analytics", "Revenue and booking analytics");
+  const { canSeeAnalytics, ready } = useRole();
   const revenue = useRevenueVisibility();
   const { data } = useList({ resource: "bookings" });
 
@@ -200,6 +202,9 @@ export function AnalyticsPage() {
     exportPrintable("Guestay Analytics", html);
   }
 
+  if (!ready) {
+    return <p style={{ color: "#9a9a8c" }}>Loading…</p>;
+  }
   if (!canSeeAnalytics) return <Navigate to="/" replace />;
 
   return (

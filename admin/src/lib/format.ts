@@ -32,7 +32,7 @@ export const BOOKING_STATUS: Record<string, StatusMeta> = {
 
 export const REFUND_STATUS: Record<string, StatusMeta> = {
   pending: { label: "Pending Review", bg: "#FDF0D5", fg: "#8A6D0B" },
-  approved_processing: { label: "Approved — Processing", bg: "#E4F3E8", fg: "#1E6B3A" },
+  approved_processing: { label: "Approved (Processing)", bg: "#E4F3E8", fg: "#1E6B3A" },
   denied: { label: "Denied", bg: "#FBE4E4", fg: "#B42318" },
 };
 
@@ -41,7 +41,7 @@ export function statusMeta(map: Record<string, StatusMeta>, status: string): Sta
 }
 
 export function humanize(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) return "-";
   return value
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());

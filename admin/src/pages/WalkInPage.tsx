@@ -2,8 +2,10 @@ import { useList } from "@refinedev/core";
 import { useState } from "react";
 import { adminAuthHeaders } from "../lib/adminAuthHeaders";
 import { SITE_URL } from "../lib/format";
+import { usePageMeta } from "../hooks/usePageMeta";
 
 export function WalkInPage() {
+  usePageMeta("Walk-in", "Create a walk-in booking");
   const { data: roomData } = useList({ resource: "rooms" });
   const rooms = (roomData?.data || []) as Array<{ id: string; name: string; status: string }>;
 

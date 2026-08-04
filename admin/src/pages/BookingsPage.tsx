@@ -8,6 +8,7 @@ import {
   downloadBlob,
   exportPrintable,
 } from "../lib/format";
+import { usePageMeta } from "../hooks/usePageMeta";
 
 type Booking = {
   id: string;
@@ -24,6 +25,7 @@ type Booking = {
 };
 
 export function BookingsPage() {
+  usePageMeta("Bookings", "Search and export Guestay bookings");
   const { data } = useList({ resource: "bookings" });
   const { data: roomData } = useList({ resource: "rooms" });
   const [q, setQ] = useState("");
@@ -86,7 +88,7 @@ export function BookingsPage() {
               SOURCE_LABEL[r.source] || r.source
             }</td><td>${statusMeta(BOOKING_STATUS, r.status).label}</td><td>${humanize(
               r.paymentStatus || "",
-            )}</td><td>${r.paidAt ? r.paidAt.slice(0, 10) : "—"}</td><td>Rs ${(r.totalPkr ?? 0).toLocaleString()}</td></tr>`,
+            )}</td><td>${r.paidAt ? r.paidAt.slice(0, 10) : "-"}</td><td>Rs ${(r.totalPkr ?? 0).toLocaleString()}</td></tr>`,
         )
         .join("")}</tbody></table>`;
     exportPrintable("Guestay Bookings", tableHtml);
@@ -96,7 +98,7 @@ export function BookingsPage() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-        <h1>Bookings / CRM</h1>
+        <h1>Bookings</h1>
         <div style={{ position: "relative" }}>
           <button type="button" className="btn secondary" onClick={() => setExportOpen((o) => !o)}>
             Export ▾
@@ -193,8 +195,8 @@ export function BookingsPage() {
                       {meta.label}
                     </span>
                   </td>
-                  <td>{humanize(r.paymentStatus || "—")}</td>
-                  <td>{r.paidAt ? r.paidAt.slice(0, 10) : "—"}</td>
+                  <td>{humanize(r.paymentStatus || "")}</td>
+                  <td>{r.paidAt ? r.paidAt.slice(0, 10) : "-"}</td>
                 </tr>
               );
             })}

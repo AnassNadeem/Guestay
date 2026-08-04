@@ -1,6 +1,7 @@
 import { useDelete, useList, useUpdate } from "@refinedev/core";
 import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
+import { usePageMeta } from "../hooks/usePageMeta";
 
 type Notif = {
   id: string;
@@ -23,6 +24,7 @@ function timeAgo(iso: string) {
 }
 
 export function NotificationsPage() {
+  usePageMeta("Notifications", "Admin notifications inbox");
   const { data, refetch, isLoading, isError, error } = useList({
     resource: "notifications",
   });
