@@ -3,6 +3,12 @@ import {
   queueContactEnquiryEmail,
   sendContactEnquiryEmail,
 } from "@/lib/mail/contact";
+import {
+  RATE_LIMITS,
+  checkRateLimit,
+  clientIp,
+  rateLimitResponse,
+} from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
 type ContactPayload = {
@@ -20,6 +26,13 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * Validates quickly, then queues the email so the guest isn't waiting on SMTP.
  */
 export async function POST(request: Request) {
+  const limited = await checkRateLimit({
+    endpoint: "contact",
+    key: clientIp(request),
+    ...RATE_LIMITS.contact,
+  });
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSec);
+
   let body: ContactPayload;
 
   try {

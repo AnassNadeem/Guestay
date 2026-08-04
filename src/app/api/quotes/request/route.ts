@@ -1,8 +1,21 @@
 import { sendQuoteRequestNotification } from "@/lib/mail/quote";
+import {
+  RATE_LIMITS,
+  checkRateLimit,
+  clientIp,
+  rateLimitResponse,
+} from "@/lib/rate-limit";
 import { createServiceSupabase, hasSupabase } from "@/lib/supabase/client";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
+  const limited = await checkRateLimit({
+    endpoint: "quote-request",
+    key: clientIp(req),
+    ...RATE_LIMITS.quoteRequest,
+  });
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSec);
+
   try {
     const body = await req.json();
     const name = String(body.name || "").trim();

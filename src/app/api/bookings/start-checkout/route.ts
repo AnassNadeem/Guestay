@@ -5,6 +5,12 @@ import {
   releaseHoldsByCartItemId,
   releaseRoomHold,
 } from "@/lib/bookings/holds";
+import {
+  RATE_LIMITS,
+  checkRateLimit,
+  clientIp,
+  rateLimitResponse,
+} from "@/lib/rate-limit";
 import type { BookingMode } from "@/types";
 import { NextResponse } from "next/server";
 
@@ -24,6 +30,13 @@ type Line = {
  * Soft "Saved" items do not hold inventory until this runs.
  */
 export async function POST(req: Request) {
+  const limited = await checkRateLimit({
+    endpoint: "start-checkout",
+    key: clientIp(req),
+    ...RATE_LIMITS.startCheckout,
+  });
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSec);
+
   try {
     const body = await req.json();
     const { lines } = body as { lines?: Line[] };

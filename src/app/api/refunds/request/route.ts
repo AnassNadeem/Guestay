@@ -1,4 +1,10 @@
 import { getLocalBooking } from "@/lib/bookings/local-store";
+import {
+  RATE_LIMITS,
+  checkRateLimit,
+  clientIp,
+  rateLimitResponse,
+} from "@/lib/rate-limit";
 import { createServiceSupabase, hasSupabase } from "@/lib/supabase/client";
 import { NextResponse } from "next/server";
 
@@ -50,6 +56,13 @@ async function ensureGuestProfile(opts: {
 }
 
 export async function POST(req: Request) {
+  const limited = await checkRateLimit({
+    endpoint: "refund-request",
+    key: clientIp(req),
+    ...RATE_LIMITS.refundRequest,
+  });
+  if (!limited.ok) return rateLimitResponse(limited.retryAfterSec);
+
   const body = await req.json();
   const { bookingId, amountPkr, reason, notes } = body as {
     bookingId: string;

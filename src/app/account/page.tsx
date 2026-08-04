@@ -365,7 +365,7 @@ function AccountInner() {
       }
 
       const res = await fetch("/api/account/bookings", { headers });
-      const data = await res.json();
+      const data = (await res.json()) as { bookings?: BookingRow[] };
       const all = (data.bookings || []) as BookingRow[];
       setBookings(all);
 

@@ -47,3 +47,11 @@ yarn-error.log*
 next-env.d.ts
 
 .wrangler-out/
+
+# Sentry Config File
+.env.sentry-build-plugin
+
+# Full wrangler types dump (use src/cloudflare-env.d.ts instead)
+cloudflare-env.d.ts
+cloudflare-env.d.ts.generated
+

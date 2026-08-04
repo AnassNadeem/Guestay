@@ -33,6 +33,10 @@ custom_domain = true
 directory = ".open-next/assets"
 binding = "ASSETS"
 
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "61c8fa16e635481096309f80d4bde4f8"
+
 # Non-secret defaults for the top-level / workers.dev deploy.
 # Override per named environment below. Secrets are NOT listed here.
 [vars]
@@ -56,6 +60,10 @@ compatibility_flags = ["nodejs_compat"]
 [env.preview.assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+[[env.preview.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "61c8fa16e635481096309f80d4bde4f8"
 
 [env.preview.vars]
 SAFEPAY_ENV = "sandbox"
@@ -87,6 +95,10 @@ custom_domain = true
 [env.production.assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+[[env.production.kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "61c8fa16e635481096309f80d4bde4f8"
 
 [env.production.vars]
 SAFEPAY_ENV = "production"
