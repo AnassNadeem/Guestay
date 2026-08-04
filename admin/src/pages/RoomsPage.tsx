@@ -2,7 +2,9 @@ import { useCreate, useList, useUpdate } from "@refinedev/core";
 import { Navigate } from "react-router-dom";
 import { useRef, useState } from "react";
 import { useRole } from "../hooks/useRole";
-import { PlusIcon, XIcon, ChevronLeftIcon, ChevronRightIcon } from "../components/icons";
+import { usePageMeta } from "../hooks/usePageMeta";
+import { PlusIcon, XIcon } from "../components/icons";
+import { truncateName } from "../lib/dateRange";
 import { supabase } from "../supabase";
 
 type Photo = { id: string; name: string; thumbnail: boolean; url?: string };
@@ -50,34 +52,61 @@ const EMPTY: Draft = {
 const TIERS = [1, 2, 3, 4] as const;
 
 export function RoomsPage() {
+  usePageMeta("Rooms", "Manage Guestay rooms and photos");
   const { data, refetch } = useList({ resource: "rooms" });
   const { mutate: update } = useUpdate();
   const { mutate: create } = useCreate();
-  const { canManageRooms, canViewRooms } = useRole();
+  const { canManageRooms, canViewRooms, ready } = useRole();
   const [modal, setModal] = useState<null | { mode: "create" | "edit"; room?: Room }>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
+  if (!ready) {
+    return <p style={{ color: "#9a9a8c" }}>Loading…</p>;
+  }
   if (!canViewRooms) return <Navigate to="/" replace />;
 
   const rooms = (data?.data || []) as Room[];
+  const activeRooms = rooms.filter((r) => r.status !== "archived");
+  const archivedRooms = rooms.filter((r) => r.status === "archived");
+  const list = showArchived ? archivedRooms : activeRooms;
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Rooms</h1>
-        {canManageRooms && (
-          <button type="button" className="btn" style={{ gap: 6 }} onClick={() => setModal({ mode: "create" })}>
-            <PlusIcon size={16} /> New Room
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <h1 style={{ margin: 0 }}>Rooms</h1>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            className={`btn secondary${showArchived ? "" : ""}`}
+            style={showArchived ? { background: "#EAECE4" } : undefined}
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            {showArchived ? "Active rooms" : `Archived (${archivedRooms.length})`}
           </button>
-        )}
+          {canManageRooms && !showArchived && (
+            <button type="button" className="btn" style={{ gap: 6 }} onClick={() => setModal({ mode: "create" })}>
+              <PlusIcon size={16} /> New Room
+            </button>
+          )}
+        </div>
       </div>
       <p style={{ color: "#6b6b60" }}>
-        {canManageRooms
-          ? "Soft-delete deactivates a room. Hard-delete only when zero bookings reference it."
-          : "View-only. Ask the owner to add or edit rooms."}
+        {showArchived
+          ? "Soft-deleted rooms. Restore to make them available again."
+          : canManageRooms
+            ? "Archive a room to hide it from the storefront without losing booking history."
+            : "View-only. Ask an admin to add or edit rooms."}
       </p>
 
       <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
-        {rooms.map((r) => (
+        {list.length === 0 && (
+          <div className="card">
+            <p style={{ margin: 0, color: "#9a9a8c" }}>
+              {showArchived ? "No archived rooms." : "No active rooms yet."}
+            </p>
+          </div>
+        )}
+        {list.map((r) => (
           <div key={r.id} className="card">
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
               <div style={{ display: "flex", gap: 12, minWidth: 0, flex: 1 }}>
@@ -107,40 +136,46 @@ export function RoomsPage() {
                   />
                 )}
                 <div style={{ minWidth: 0 }}>
-                <h2 style={{ margin: 0 }}>{r.name}</h2>
-                <p style={{ margin: "4px 0", color: "#6b6b60" }}>
-                  {r.type.replace(/_/g, " ")} · sleeps {r.capacity} · {r.beds ?? "—"} bed(s) · {r.status}
-                </p>
-                {r.description && <p style={{ margin: "4px 0", fontSize: 13 }}>{r.description}</p>}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
-                  {(r.amenities || []).map((a) => (
-                    <span key={a} className="badge" style={{ background: "#EAECE4", color: "#3B4430" }}>
-                      {a}
-                    </span>
-                  ))}
-                </div>
-                <div style={{ marginTop: 8, fontSize: 13, color: "#6b6b60" }}>
-                  Pricing: Rs {r.tier1} / {r.tier2} / {r.tier3} / {r.tier4} · photos: {(r.photos || []).length}
-                </div>
+                  <h2 style={{ margin: 0 }}>{r.name}</h2>
+                  <p style={{ margin: "4px 0", color: "#6b6b60" }}>
+                    {r.type.replace(/_/g, " ")} · sleeps {r.capacity} · {r.beds ?? "-"} bed(s) · {r.status}
+                  </p>
+                  {r.description && <p style={{ margin: "4px 0", fontSize: 13 }}>{r.description}</p>}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                    {(r.amenities || []).map((a) => (
+                      <span key={a} className="badge" style={{ background: "#EAECE4", color: "#3B4430" }}>
+                        {a}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 13, color: "#6b6b60" }}>
+                    Pricing: Rs {r.tier1} / {r.tier2} / {r.tier3} / {r.tier4} · photos: {(r.photos || []).length}
+                  </div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, height: "fit-content" }}>
                 {canManageRooms && (
                   <>
-                    <button type="button" className="btn secondary" onClick={() => setModal({ mode: "edit", room: r })}>
-                      Edit
-                    </button>
+                    {!showArchived && (
+                      <button type="button" className="btn secondary" onClick={() => setModal({ mode: "edit", room: r })}>
+                        Edit
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn secondary"
                       onClick={() =>
                         update(
-                          { resource: "rooms", id: r.id, values: { status: r.status === "active" ? "archived" : "active" } },
+                          {
+                            resource: "rooms",
+                            id: r.id,
+                            values: { status: r.status === "archived" ? "active" : "archived" },
+                          },
                           { onSuccess: () => refetch() },
                         )
                       }
                     >
-                      {r.status === "active" ? "Soft-delete" : "Restore"}
+                      {r.status === "archived" ? "Restore" : "Archive"}
                     </button>
                   </>
                 )}
@@ -232,7 +267,7 @@ function RoomForm({
   async function addPhotos(files: FileList | null) {
     if (!files || files.length === 0) return;
     if (!supabase) {
-      setUploadError("Supabase is not configured — cannot upload photos.");
+      setUploadError("Supabase is not configured - cannot upload photos.");
       return;
     }
     setUploadError(null);
@@ -268,20 +303,19 @@ function RoomForm({
     }
   }
 
-  function movePhoto(index: number, delta: number) {
-    const list = [...(draft.photos || [])];
-    const target = index + delta;
-    if (target < 0 || target >= list.length) return;
-    [list[index], list[target]] = [list[target], list[index]];
-    set("photos", list);
-  }
-
   function setThumbnail(id: string) {
-    set("photos", (draft.photos || []).map((p) => ({ ...p, thumbnail: p.id === id })));
+    set(
+      "photos",
+      (draft.photos || []).map((p) => ({ ...p, thumbnail: p.id === id })),
+    );
   }
 
   function removePhoto(id: string) {
-    set("photos", (draft.photos || []).filter((p) => p.id !== id));
+    const next = (draft.photos || []).filter((p) => p.id !== id);
+    if (next.length && !next.some((p) => p.thumbnail)) {
+      next[0] = { ...next[0]!, thumbnail: true };
+    }
+    set("photos", next);
   }
 
   return (
@@ -376,7 +410,7 @@ function RoomForm({
 
         <h4 style={{ margin: "14px 0 8px" }}>Photos</h4>
         <p style={{ fontSize: 12, color: "#6b6b60", marginTop: 0 }}>
-          Uploads go to Supabase Storage (<code>room-images</code>). Set a thumbnail for the cover image.
+          Choose a thumbnail for the cover image. Long file names are shortened so actions stay inside the card.
         </p>
         <input
           ref={fileRef}
@@ -399,7 +433,7 @@ function RoomForm({
           <p style={{ color: "#b42318", fontSize: 13, marginTop: 8 }}>{uploadError}</p>
         )}
         <div style={{ display: "grid", gap: 6, marginTop: 10 }}>
-          {(draft.photos || []).map((p, i) => (
+          {(draft.photos || []).map((p) => (
             <div
               key={p.id}
               style={{
@@ -409,6 +443,7 @@ function RoomForm({
                 border: "1px solid rgba(59,68,48,0.12)",
                 borderRadius: 8,
                 padding: "6px 8px",
+                minWidth: 0,
               }}
             >
               {p.url ? (
@@ -421,34 +456,39 @@ function RoomForm({
                     objectFit: "cover",
                     borderRadius: 6,
                     background: "#EAECE4",
+                    flexShrink: 0,
                   }}
                 />
               ) : (
                 <div
-                  style={{ width: 48, height: 48, borderRadius: 6, background: "#EAECE4" }}
+                  style={{ width: 48, height: 48, borderRadius: 6, background: "#EAECE4", flexShrink: 0 }}
                   aria-hidden
                 />
               )}
-              <span style={{ flex: 1, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis" }}>
-                {p.name}
+              <span className="photo-name" title={p.name}>
+                {truncateName(p.name, 24)}
               </span>
-              {p.thumbnail && (
-                <span className="badge" style={{ background: "#E4F3E8", color: "#1E6B3A" }}>
+              {p.thumbnail ? (
+                <span className="badge" style={{ background: "#E4F3E8", color: "#1E6B3A", flexShrink: 0 }}>
                   Thumbnail
                 </span>
-              )}
-              <button type="button" className="btn secondary icon-btn" onClick={() => movePhoto(i, -1)} aria-label="Move up">
-                <ChevronLeftIcon size={15} />
-              </button>
-              <button type="button" className="btn secondary icon-btn" onClick={() => movePhoto(i, 1)} aria-label="Move down">
-                <ChevronRightIcon size={15} />
-              </button>
-              {!p.thumbnail && (
-                <button type="button" className="btn secondary" style={{ height: 32 }} onClick={() => setThumbnail(p.id)}>
-                  Set as thumbnail
+              ) : (
+                <button
+                  type="button"
+                  className="btn secondary"
+                  style={{ height: 32, fontSize: 12, padding: "0 10px", flexShrink: 0, whiteSpace: "nowrap" }}
+                  onClick={() => setThumbnail(p.id)}
+                >
+                  Select as Thumbnail
                 </button>
               )}
-              <button type="button" className="btn secondary icon-btn" onClick={() => removePhoto(p.id)} aria-label="Remove">
+              <button
+                type="button"
+                className="btn secondary icon-btn"
+                onClick={() => removePhoto(p.id)}
+                aria-label="Remove photo"
+                title="Remove"
+              >
                 <XIcon size={15} />
               </button>
             </div>
