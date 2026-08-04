@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRole } from "../hooks/useRole";
 import { usePageMeta } from "../hooks/usePageMeta";
 import { adminAuthHeaders } from "../lib/adminAuthHeaders";
+import { readApiError, readApiJson } from "../lib/apiError";
 import { SITE_URL, humanize } from "../lib/format";
 import {
   PlusIcon,
@@ -174,12 +175,12 @@ export function UsersPage() {
           phone: form.phone.trim() || undefined,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
+      const data = (await readApiJson(res)) as {
         error?: string;
         warning?: string;
         ok?: boolean;
       };
-      if (!res.ok) throw new Error(data.error || "Invite failed");
+      if (!res.ok) throw new Error(readApiError(data, "Invite failed", res.status));
       setActionOk(
         data.warning ||
           "Invite sent. The user will receive an email to set their password.",
@@ -209,8 +210,8 @@ export function UsersPage() {
           status: form.status === "active" ? "active" : "inactive",
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(data.error || "Update failed");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(readApiError(data, "Update failed", res.status));
       setActionOk("User updated");
       setModal(null);
       await loadUsers();
@@ -231,8 +232,8 @@ export function UsersPage() {
         headers: await adminAuthHeaders(),
         body: JSON.stringify({ status: next }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(data.error || "Status update failed");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(readApiError(data, "Status update failed", res.status));
       await loadUsers();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Status update failed");
@@ -250,19 +251,43 @@ export function UsersPage() {
         method: "DELETE",
         headers: await adminAuthHeaders(),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(data.error || "Delete failed");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(readApiError(data, "Delete failed", res.status));
       setActionOk("User deleted");
       setModal(null);
       await loadUsers();
     } catch (err) {
       const msg =
         err instanceof TypeError
-          ? `Could not reach the API (${SITE_URL}). Check that the site is deployed and VITE_SITE_URL is set.`
+          ? `Could not reach the API (${SITE_URL}). Check that the site is deployed.`
           : err instanceof Error
             ? err.message
             : "Delete failed";
       setActionError(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deactivateInstead() {
+    if (!selected) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`${SITE_URL}/api/admin/staff/${selected.id}`, {
+        method: "PATCH",
+        headers: await adminAuthHeaders(),
+        body: JSON.stringify({ status: "inactive" }),
+      });
+      const data = await readApiJson(res);
+      if (!res.ok) {
+        throw new Error(readApiError(data, "Deactivate failed", res.status));
+      }
+      setActionOk("User deactivated");
+      setModal(null);
+      await loadUsers();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Deactivate failed");
     } finally {
       setBusy(false);
     }
@@ -566,10 +591,20 @@ export function UsersPage() {
               <strong>{selected.email}</strong>? This cannot be undone.
             </p>
             {actionError && <p style={{ color: "#B42318", fontSize: 13 }}>{actionError}</p>}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
               <button type="button" className="btn secondary" onClick={() => setModal(null)}>
                 Cancel
               </button>
+              {actionError?.toLowerCase().includes("deactivate") && (
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={deactivateInstead}
+                  disabled={busy}
+                >
+                  {busy ? "Working…" : "Deactivate instead"}
+                </button>
+              )}
               <button
                 type="button"
                 className="btn"

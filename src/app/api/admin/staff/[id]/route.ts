@@ -194,80 +194,149 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
 /**
  * Owner-only: permanently delete a staff user (auth + profile).
+ * If the user is referenced by bookings/refunds/etc, hard-delete is blocked
+ * with a clear message (use Deactivate instead).
  */
 export async function DELETE(req: Request, ctx: Ctx) {
-  const auth = await requireStaffRole(req, ["owner"]);
-  if (!auth.ok) return applyAdminCors(req, auth.response);
+  try {
+    const auth = await requireStaffRole(req, ["owner"]);
+    if (!auth.ok) return applyAdminCors(req, auth.response);
 
-  if (!hasSupabase()) {
-    return jsonWithAdminCors(
-      req,
-      { error: "Supabase is not configured" },
-      { status: 503 },
-    );
-  }
-
-  const { id } = await ctx.params;
-  if (!id) {
-    return jsonWithAdminCors(req, { error: "Missing id" }, { status: 400 });
-  }
-
-  if (id === auth.userId) {
-    return jsonWithAdminCors(
-      req,
-      { error: "You cannot delete your own account" },
-      { status: 400 },
-    );
-  }
-
-  const sb = createServiceSupabase();
-  const { data: existing } = await sb
-    .from("profiles")
-    .select("id, role, is_suspended")
-    .eq("id", id)
-    .maybeSingle();
-
-  if (!existing) {
-    return jsonWithAdminCors(req, { error: "User not found" }, { status: 404 });
-  }
-
-  if (existing.role !== "owner" && existing.role !== "manager") {
-    return jsonWithAdminCors(
-      req,
-      { error: "Not a staff user" },
-      { status: 400 },
-    );
-  }
-
-  if (existing.role === "owner") {
-    const { count } = await sb
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "owner")
-      .eq("is_suspended", false)
-      .neq("id", id);
-    if ((count ?? 0) < 1 && !existing.is_suspended) {
+    if (!hasSupabase()) {
       return jsonWithAdminCors(
         req,
-        { error: "Cannot delete the last active admin" },
+        { error: "Supabase is not configured" },
+        { status: 503 },
+      );
+    }
+
+    const { id } = await ctx.params;
+    if (!id) {
+      return jsonWithAdminCors(req, { error: "Missing id" }, { status: 400 });
+    }
+
+    if (id === auth.userId) {
+      return jsonWithAdminCors(
+        req,
+        { error: "You cannot delete your own account" },
         { status: 400 },
       );
     }
-  }
 
-  const { error: delAuthErr } = await sb.auth.admin.deleteUser(id);
-  if (delAuthErr) {
+    const sb = createServiceSupabase();
+    const { data: existing } = await sb
+      .from("profiles")
+      .select("id, email, role, is_suspended")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!existing) {
+      return jsonWithAdminCors(req, { error: "User not found" }, { status: 404 });
+    }
+
+    if (existing.role !== "owner" && existing.role !== "manager") {
+      return jsonWithAdminCors(
+        req,
+        { error: "Not a staff user" },
+        { status: 400 },
+      );
+    }
+
+    if (existing.role === "owner") {
+      const { count } = await sb
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("role", "owner")
+        .eq("is_suspended", false)
+        .neq("id", id);
+      if ((count ?? 0) < 1 && !existing.is_suspended) {
+        return jsonWithAdminCors(
+          req,
+          { error: "Cannot delete the last active admin" },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Block hard-delete when other tables still reference this profile.
+    const [{ count: bookingRefs }, { count: refundRefs }, { count: orderRefs }] =
+      await Promise.all([
+        sb
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .or(`guest_id.eq.${id},created_by.eq.${id}`),
+        sb
+          .from("refund_requests")
+          .select("id", { count: "exact", head: true })
+          .or(`guest_id.eq.${id},decided_by.eq.${id}`),
+        sb
+          .from("booking_orders")
+          .select("id", { count: "exact", head: true })
+          .eq("guest_id", id),
+      ]);
+
+    const linked =
+      (bookingRefs ?? 0) + (refundRefs ?? 0) + (orderRefs ?? 0);
+    if (linked > 0) {
+      return jsonWithAdminCors(
+        req,
+        {
+          error:
+            "This user is linked to bookings or refunds, so they cannot be permanently deleted. Deactivate the account instead.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const { error: delAuthErr } = await sb.auth.admin.deleteUser(id);
+    if (delAuthErr) {
+      const msg =
+        delAuthErr.message ||
+        (delAuthErr as { error_description?: string }).error_description ||
+        "Could not delete auth user";
+      // Common when FKs still block cascade
+      if (/foreign key|violates|restrict|reference/i.test(msg)) {
+        return jsonWithAdminCors(
+          req,
+          {
+            error:
+              "This user is still referenced by other records. Deactivate the account instead of deleting.",
+          },
+          { status: 409 },
+        );
+      }
+      return jsonWithAdminCors(req, { error: msg }, { status: 500 });
+    }
+
+    // Profile usually cascades from auth.users; clean up if it remains.
+    const { error: delProfileErr } = await sb
+      .from("profiles")
+      .delete()
+      .eq("id", id);
+    if (delProfileErr) {
+      return jsonWithAdminCors(
+        req,
+        {
+          error:
+            delProfileErr.message ||
+            "Auth user removed but profile cleanup failed. Refresh and check the list.",
+        },
+        { status: 500 },
+      );
+    }
+
+    return jsonWithAdminCors(req, { ok: true, id });
+  } catch (err) {
+    console.error("[admin/staff DELETE]", err);
     return jsonWithAdminCors(
       req,
-      { error: delAuthErr.message || "Could not delete auth user" },
+      {
+        error:
+          err instanceof Error ? err.message : "Unexpected delete failure",
+      },
       { status: 500 },
     );
   }
-
-  // Profile may cascade; ensure cleanup
-  await sb.from("profiles").delete().eq("id", id);
-
-  return jsonWithAdminCors(req, { ok: true, id });
 }
 
 /** Owner-only: fetch one staff user with full detail. */
