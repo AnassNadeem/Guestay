@@ -278,6 +278,7 @@ export const dataProvider = {
         phone: p.phone,
         role: p.role,
         createdAt: p.created_at,
+        joinedAt: p.created_at ? String(p.created_at).slice(0, 10) : undefined,
       }));
       return { data: mapped as unknown as TData[], total: mapped.length };
     }
@@ -296,7 +297,7 @@ export const dataProvider = {
         email: p.email,
         name: p.full_name || p.email,
         role: p.role,
-        status: p.is_suspended ? "suspended" : "active",
+        status: p.is_suspended ? "inactive" : "active",
         lastLogin: p.last_login_at
           ? new Date(p.last_login_at as string).toLocaleString()
           : "—",
@@ -641,9 +642,14 @@ export const dataProvider = {
     if (resource === "users") {
       const patch: Record<string, unknown> = {};
       if (v.status !== undefined) {
-        patch.is_suspended = v.status === "suspended";
+        patch.is_suspended =
+          v.status === "suspended" || v.status === "inactive";
       }
-      if (v.role !== undefined) patch.role = v.role;
+      if (v.role !== undefined) {
+        const role =
+          v.role === "admin" ? "owner" : (v.role as string);
+        patch.role = role;
+      }
       const { data, error } = await sb
         .from("profiles")
         .update(patch)
@@ -656,7 +662,7 @@ export const dataProvider = {
           id: data.id,
           email: data.email,
           role: data.role,
-          status: data.is_suspended ? "suspended" : "active",
+          status: data.is_suspended ? "inactive" : "active",
           lastLogin: data.last_login_at
             ? new Date(data.last_login_at as string).toLocaleString()
             : "—",
