@@ -1,2 +1,28 @@
+# Cloudflare Pages / Worker static headers — storefront
 /_next/static/*
   Cache-Control: public,max-age=31536000,immutable
+
+# Private / staff paths: keep out of search indexes at the edge.
+/admin
+  X-Robots-Tag: noindex, nofollow
+
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+
+/checkout
+  X-Robots-Tag: noindex, nofollow
+
+/checkout/*
+  X-Robots-Tag: noindex, nofollow
+
+/account
+  X-Robots-Tag: noindex, nofollow
+
+/account/*
+  X-Robots-Tag: noindex, nofollow
+
+/login
+  X-Robots-Tag: noindex, nofollow
+
+/set-password
+  X-Robots-Tag: noindex, nofollow

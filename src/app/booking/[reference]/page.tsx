@@ -10,6 +10,7 @@ type Props = { params: Promise<{ reference: string }> };
 
 export const metadata: Metadata = {
   title: "Booking confirmation",
+  robots: { index: false, follow: false },
 };
 
 /**

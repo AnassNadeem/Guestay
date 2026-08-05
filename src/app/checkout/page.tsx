@@ -5,6 +5,7 @@ import { Suspense } from "react";
 export const metadata: Metadata = {
   title: "Checkout",
   description: "Complete your Guestay booking on one page.",
+  robots: { index: false, follow: false },
 };
 
 export default function CheckoutPage() {

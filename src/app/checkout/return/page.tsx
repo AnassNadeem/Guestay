@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Payment return",
+  robots: { index: false, follow: false },
 };
 
 export const dynamic = "force-dynamic";

@@ -7,13 +7,19 @@ import { useState } from "react";
 export function RoomGallery({
   images,
   name,
+  categoryLabel,
 }: {
   images: string[];
   name: string;
+  /** e.g. "Shared bedroom" — used for keyword-relevant alt text */
+  categoryLabel?: string;
 }) {
   const safe = images.filter(Boolean);
   const [active, setActive] = useState(0);
   const total = safe.length;
+  const baseAlt = categoryLabel
+    ? `${categoryLabel} interior at Guestay coliving, Sadaat Town Lahore Cantt`
+    : `${name} at Guestay coliving, Sadaat Town Lahore Cantt`;
 
   function prev() {
     if (total === 0) return;
@@ -32,7 +38,7 @@ export function RoomGallery({
         {current ? (
           <Image
             src={current}
-            alt={`${name}, photo ${active + 1}`}
+            alt={`${baseAlt} — ${name}, photo ${active + 1}`}
             fill
             priority
             sizes="(max-width: 1024px) 100vw, 60vw"
@@ -79,7 +85,13 @@ export function RoomGallery({
               }`}
               aria-label={`Show photo ${i + 1}`}
             >
-              <Image src={src} alt="" fill sizes="120px" className="object-cover" />
+              <Image
+                src={src}
+                alt={`${baseAlt} — thumbnail ${i + 1}`}
+                fill
+                sizes="120px"
+                className="object-cover"
+              />
             </button>
           ))}
         </div>

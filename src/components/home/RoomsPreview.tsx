@@ -116,7 +116,7 @@ function PeekCard({ room }: { room: Room }) {
       <div className="relative aspect-[4/3] overflow-hidden bg-cream-200">
         <Image
           src={room.coverImage}
-          alt=""
+          alt={`${room.name} at Guestay coliving, Sadaat Town Lahore Cantt`}
           fill
           sizes="(max-width: 768px) 100vw, 33vw"
           className="object-cover"

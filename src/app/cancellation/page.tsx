@@ -4,6 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Cancellation & Refund Policy",
   description: "Cancellation and refund rules for Guestay bookings.",
+  alternates: { canonical: "/cancellation" },
 };
 
 export default function CancellationPage() {
