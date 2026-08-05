@@ -3,6 +3,7 @@ import {
   getOrderBookings,
 } from "@/lib/bookings/confirm";
 import {
+  findPaymentByNotificationId,
   getLocalBooking,
   getLocalBookingByTracker,
   updateLocalBooking,
@@ -13,8 +14,9 @@ import { NextResponse } from "next/server";
 
 /**
  * Safepay webhook — the ONLY path that sets Safepay bookings to paid.
- * HMAC required (SAFEPAY_WEBHOOK_SECRET), then verifyTracker, then finalize.
- * Retries are idempotent via finalizeSuccessfulBooking.alreadyFinalized.
+ * HMAC-SHA512 of raw body (SAFEPAY_WEBHOOK_SECRET) required, then
+ * verifyTracker, then finalize. Retries are idempotent via notification_id
+ * on payments.gateway_payload and finalizeSuccessfulBooking.alreadyFinalized.
  *
  * Dashboard setup:
  * 1. Safepay → Developer → Webhooks → endpoint https://<site>/api/webhooks/safepay
@@ -42,16 +44,11 @@ export async function POST(req: Request) {
     req.headers.get("x-sfpy-signature") ||
     req.headers.get("x-safepay-signature") ||
     "";
-  const timestamp =
-    req.headers.get("x-sfpy-timestamp") ||
-    req.headers.get("x-safepay-timestamp") ||
-    "";
 
   const verifiedSig = verifySafepayWebhookSignature({
-    secretBase64: secret,
+    secret,
     rawBody: raw,
     signatureHeader: sig,
-    timestampHeader: timestamp,
   });
   if (!verifiedSig.ok) {
     console.warn("[safepay webhook] signature failed", verifiedSig.error);
@@ -70,13 +67,43 @@ export async function POST(req: Request) {
     | undefined;
   const data = payload.data as Record<string, unknown> | undefined;
 
+  const notificationId =
+    (payload.notification_id as string) ||
+    (notification?.id as string) ||
+    (notification?.notification_id as string) ||
+    (data?.notification_id as string) ||
+    null;
+
+  console.info("[safepay webhook] signature verified", {
+    notificationId,
+    keys: Object.keys(payload),
+  });
+
+  // notification_id replay protection (replaces timestamp freshness check).
+  // Same idempotent success shape as alreadyFinalized — safe no-op, not an error.
+  if (notificationId) {
+    const prior = await findPaymentByNotificationId(notificationId);
+    if (prior) {
+      console.info("[safepay webhook] notification already processed", {
+        notificationId,
+        paymentId: prior.id,
+      });
+      return NextResponse.json({
+        received: true,
+        updated: false,
+        alreadyProcessed: true,
+        alreadyReleased: true,
+      });
+    }
+  }
+
   const tracker =
     (payload.tracker as string) ||
     (notification?.tracker as string) ||
     (data?.tracker as string) ||
     (data?.token as string);
 
-  console.info("[safepay webhook]", { tracker, keys: Object.keys(payload) });
+  console.info("[safepay webhook]", { tracker, notificationId, keys: Object.keys(payload) });
 
   if (!tracker) {
     return NextResponse.json({ received: true, updated: false });
@@ -123,6 +150,14 @@ export async function POST(req: Request) {
     status,
     amounts,
     sessionUserId: booking.pendingSessionUserId || null,
+    notificationId,
+  });
+
+  console.info("[safepay webhook] finalized", {
+    tracker,
+    notificationId,
+    reference: finalized?.reference,
+    alreadyFinalized: finalized?.alreadyFinalized ?? false,
   });
 
   return NextResponse.json({

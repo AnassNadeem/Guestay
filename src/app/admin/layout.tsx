@@ -1,6 +1,14 @@
 /**
  * Soft-retire Next.js /admin — staff UI lives on Refine at admin.guestay.pk.
+ * Entire legacy tree is noindexed (belt-and-suspenders with Refine admin origin).
  */
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Admin",
+  robots: { index: false, follow: false },
+};
+
 export default function AdminRetiredLayout({
   children,
 }: {

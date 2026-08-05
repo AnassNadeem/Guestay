@@ -2,73 +2,46 @@ import { createHmac, timingSafeEqual } from "crypto";
 
 /**
  * Safepay webhook HMAC (sandbox + production).
- * Docs: signature over `timestamp + '.' + raw_body` with base64-decoded secret.
- * Expected header format: `sha256=<hex digest>` (also accepts bare hex).
+ *
+ * Confirmed live scheme (ASP.Net guide / real dashboard deliveries):
+ * HMAC-SHA512 over the raw request body bytes with SAFEPAY_WEBHOOK_SECRET
+ * as a UTF-8 key; compare the lowercase hex digest to `x-sfpy-signature`
+ * as bare hex (no timestamp, no `sha256=` prefix).
  */
 export function verifySafepayWebhookSignature(opts: {
-  secretBase64: string;
+  secret: string;
   rawBody: string | Buffer;
   signatureHeader: string;
-  timestampHeader: string;
-  /** Reject if timestamp drifts more than this (ms). Default 5 minutes. */
-  toleranceMs?: number;
 }): { ok: true } | { ok: false; error: string } {
-  const {
-    secretBase64,
-    rawBody,
-    signatureHeader,
-    timestampHeader,
-    toleranceMs = 5 * 60 * 1000,
-  } = opts;
+  const { secret, rawBody, signatureHeader } = opts;
 
-  if (!signatureHeader || !timestampHeader) {
-    return { ok: false, error: "Missing signature or timestamp header" };
+  if (!signatureHeader?.trim()) {
+    return { ok: false, error: "Missing signature header" };
   }
-
-  if (toleranceMs > 0) {
-    const ts = Date.parse(timestampHeader);
-    if (Number.isNaN(ts)) {
-      return { ok: false, error: "Invalid timestamp" };
-    }
-    const drift = Math.abs(Date.now() - ts);
-    if (drift > toleranceMs) {
-      return { ok: false, error: "Timestamp outside tolerance" };
-    }
-  }
-
-  let key: Buffer;
-  try {
-    key = Buffer.from(secretBase64, "base64");
-    if (key.length === 0) {
-      // Some dashboard secrets are already raw hex/utf8
-      key = Buffer.from(secretBase64, "utf8");
-    }
-  } catch {
-    return { ok: false, error: "Invalid webhook secret encoding" };
+  if (!secret) {
+    return { ok: false, error: "Missing webhook secret" };
   }
 
   const bodyBuf = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody, "utf8");
-  const mac = createHmac("sha256", key);
-  mac.update(timestampHeader, "utf8");
-  mac.update(".", "utf8");
-  mac.update(bodyBuf);
-  const digestHex = mac.digest("hex");
-  const expectedPrefixed = `sha256=${digestHex}`;
+  const digestHex = createHmac("sha512", Buffer.from(secret, "utf8"))
+    .update(bodyBuf)
+    .digest("hex");
 
-  const provided = signatureHeader.trim();
-  const candidates = [expectedPrefixed, digestHex];
-  const matched = candidates.some((expected) => {
-    try {
-      const a = Buffer.from(expected);
-      const b = Buffer.from(provided);
-      return a.length === b.length && timingSafeEqual(a, b);
-    } catch {
-      return false;
+  const provided = signatureHeader.trim().toLowerCase();
+  // Strip accidental algorithm prefix if a proxy or older sender adds one.
+  const providedBare = provided.startsWith("sha512=")
+    ? provided.slice("sha512=".length)
+    : provided;
+
+  try {
+    const a = Buffer.from(digestHex, "utf8");
+    const b = Buffer.from(providedBare, "utf8");
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      return { ok: false, error: "Signature mismatch" };
     }
-  });
-
-  if (!matched) {
+  } catch {
     return { ok: false, error: "Signature mismatch" };
   }
+
   return { ok: true };
 }

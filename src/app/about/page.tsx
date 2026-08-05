@@ -2,9 +2,10 @@ import { AboutContent } from "@/components/about/AboutContent";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "About",
+  title: "About Guestay",
   description:
-    "Guestay is a small coliving house built for clear rates, private rooms, and shared living that feels adult.",
+    "Guestay is a coliving house on Bedian Road in Sadaat Town, Lahore Cantt — clear rates, shared bedrooms and flats, and shared living that feels adult.",
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {

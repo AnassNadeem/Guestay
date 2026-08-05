@@ -17,6 +17,7 @@ type Props = {
 
 export const metadata: Metadata = {
   title: "Booking confirmed",
+  robots: { index: false, follow: false },
 };
 
 export const dynamic = "force-dynamic";

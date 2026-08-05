@@ -190,6 +190,8 @@ export async function finalizeSuccessfulBooking(opts: {
   status: "paid" | "partially_paid" | "confirmed_no_advance";
   amounts?: Array<{ id: string; amountPaidPkr: number; amountDuePkr: number }>;
   sessionUserId?: string | null;
+  /** Safepay webhook notification_id — stamped onto payments for replay protection. */
+  notificationId?: string | null;
 }): Promise<FinalizeResult | null> {
   const seed = await getLocalBooking(opts.bookingId);
   if (!seed) return null;
@@ -264,6 +266,7 @@ export async function finalizeSuccessfulBooking(opts: {
         kind: opts.status === "partially_paid" ? "deposit" : "full",
         status: "succeeded",
         paidAt: new Date().toISOString(),
+        notificationId: opts.notificationId,
       });
     }
   }

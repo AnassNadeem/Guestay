@@ -680,6 +680,25 @@ export async function attachPaidAt(
   }));
 }
 
+/**
+ * Replay guard for Safepay webhooks: has this notification_id already been
+ * applied to a payments row? Reuses payments.gateway_payload (no new table).
+ */
+export async function findPaymentByNotificationId(notificationId: string) {
+  if (!notificationId) return null;
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from("payments")
+    .select("id, status, gateway_tracker, booking_id, gateway_payload")
+    .contains("gateway_payload", { notification_id: notificationId })
+    .maybeSingle();
+  if (error) {
+    console.warn("[findPaymentByNotificationId]", error.message);
+    return null;
+  }
+  return data;
+}
+
 /** Persist a payments row when starting / completing checkout. */
 export async function upsertPaymentForBooking(input: {
   bookingId: string;
@@ -690,6 +709,8 @@ export async function upsertPaymentForBooking(input: {
   status?: "pending" | "succeeded" | "failed";
   preferredMethod?: string | null;
   paidAt?: string | null;
+  /** Safepay webhook notification_id — stored for replay protection. */
+  notificationId?: string | null;
 }) {
   const sb = requireSupabase();
   const status = input.status || "pending";
@@ -697,10 +718,13 @@ export async function upsertPaymentForBooking(input: {
     status === "succeeded"
       ? input.paidAt || new Date().toISOString()
       : null;
+  const payloadPatch = input.notificationId
+    ? { notification_id: input.notificationId }
+    : null;
 
   const { data: existing } = await sb
     .from("payments")
-    .select("id, paid_at")
+    .select("id, paid_at, gateway_payload")
     .eq("gateway_tracker", input.tracker)
     .eq("booking_id", input.bookingId)
     .maybeSingle();
@@ -710,12 +734,22 @@ export async function upsertPaymentForBooking(input: {
     // (avoids double-count perception when webhook + retries race).
     const { data: full } = await sb
       .from("payments")
-      .select("id, status, amount_pkr, paid_at")
+      .select("id, status, amount_pkr, paid_at, gateway_payload")
       .eq("id", existing.id)
       .maybeSingle();
     if (full?.status === "succeeded") {
+      if (payloadPatch) {
+        const prev =
+          (full.gateway_payload as Record<string, unknown> | null) || {};
+        await sb
+          .from("payments")
+          .update({ gateway_payload: { ...prev, ...payloadPatch } })
+          .eq("id", existing.id);
+      }
       return existing.id as string;
     }
+    const prev =
+      (existing.gateway_payload as Record<string, unknown> | null) || {};
     const patch: Record<string, unknown> = {
       status,
       amount_pkr: input.amountPkr,
@@ -723,6 +757,9 @@ export async function upsertPaymentForBooking(input: {
     };
     if (paidAt && !existing.paid_at) {
       patch.paid_at = paidAt;
+    }
+    if (payloadPatch) {
+      patch.gateway_payload = { ...prev, ...payloadPatch };
     }
     await sb.from("payments").update(patch).eq("id", existing.id);
     return existing.id as string;
@@ -740,6 +777,7 @@ export async function upsertPaymentForBooking(input: {
       gateway_tracker: input.tracker,
       preferred_method: input.preferredMethod || null,
       paid_at: paidAt,
+      gateway_payload: payloadPatch,
     })
     .select("id")
     .single();

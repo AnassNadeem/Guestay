@@ -40,7 +40,7 @@ export function CategoryStrip({ rooms }: { rooms: Room[] }) {
                 <div className="relative aspect-[4/3] overflow-hidden bg-cream-200">
                   <Image
                     src={room.coverImage}
-                    alt={room.name}
+                    alt={`${room.name} at Guestay coliving, Sadaat Town Lahore Cantt`}
                     fill
                     sizes="(max-width: 768px) 100vw, 33vw"
                     className="object-cover transition-transform duration-500 ease-brand group-hover:scale-[1.03]"

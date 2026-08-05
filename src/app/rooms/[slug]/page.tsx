@@ -1,11 +1,24 @@
 import { BookingQuoteCard } from "@/components/rooms/BookingQuoteCard";
 import { RoomGallery } from "@/components/rooms/RoomGallery";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { Badge } from "@/components/ui/Badge";
 import {
   getAmenitiesByIds,
   getRoomBySlug,
   getSiteContact,
 } from "@/lib/mock";
+import {
+  buildBreadcrumbJsonLd,
+  buildRoomJsonLd,
+  roomCategoryLabel,
+} from "@/lib/seo/schema";
+import {
+  absoluteUrl,
+  NEIGHBORHOOD,
+  roomImageAlt,
+  roomMetaDescription,
+  roomMetaTitle,
+} from "@/lib/seo/site";
 import { formatCurrency } from "@/lib/utils";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -17,18 +30,49 @@ type Props = { params: { slug: string } };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const room = await getRoomBySlug(params.slug);
-  if (!room) return { title: "Room not found" };
+  if (!room) return { title: "Room not found", robots: { index: false } };
+
+  const label = roomCategoryLabel[room.category];
+  const title = roomMetaTitle(room.name, label, room.capacity);
+  const description = roomMetaDescription(
+    room.name,
+    label,
+    room.capacity,
+    room.tagline,
+    room.priceFrom,
+  );
+  const canonicalPath = `/rooms/${room.slug}`;
+  const ogImage = room.coverImage || room.images[0];
+
   return {
-    title: room.name,
-    description: room.tagline,
+    title,
+    description,
+    alternates: {
+      // Clean path only — ignore any date/guest query params (duplicate-content guard)
+      canonical: canonicalPath,
+    },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: absoluteUrl(canonicalPath),
+      images: ogImage
+        ? [
+            {
+              url: ogImage,
+              alt: roomImageAlt(room.name, label),
+            },
+          ]
+        : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: `${description} From PKR ${room.priceFrom.toLocaleString("en-PK")}/night · ${NEIGHBORHOOD}.`,
+      images: ogImage ? [ogImage] : undefined,
+    },
   };
 }
-
-const categoryLabel = {
-  shared_bedroom: "Shared bedroom",
-  private_room: "Private room",
-  flat: "Flat",
-} as const;
 
 export default async function RoomDetailPage({ params }: Props) {
   const [room, contact] = await Promise.all([
@@ -38,11 +82,18 @@ export default async function RoomDetailPage({ params }: Props) {
   if (!room) notFound();
 
   const amenities = await getAmenitiesByIds(room.amenities);
+  const label = roomCategoryLabel[room.category];
 
   return (
     <div className="bg-paper pt-24 md:pt-28">
+      <JsonLd data={buildRoomJsonLd(room, contact)} />
+      <JsonLd data={buildBreadcrumbJsonLd(room)} />
       <div className="container-page pb-16 md:pb-24">
-        <nav className="mb-6 text-sm text-ink-muted">
+        <nav className="mb-6 text-sm text-ink-muted" aria-label="Breadcrumb">
+          <Link href="/" className="hover:text-olive">
+            Home
+          </Link>
+          <span className="mx-2 text-ink-soft">/</span>
           <Link href="/rooms" className="hover:text-olive">
             Rooms
           </Link>
@@ -52,10 +103,14 @@ export default async function RoomDetailPage({ params }: Props) {
 
         <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:gap-12">
           <div>
-            <RoomGallery images={room.images} name={room.name} />
+            <RoomGallery
+              images={room.images}
+              name={room.name}
+              categoryLabel={label}
+            />
 
             <div className="mt-8">
-              <Badge tone="cream">{categoryLabel[room.category]}</Badge>
+              <Badge tone="cream">{label}</Badge>
               <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight text-ink md:text-4xl">
                 {room.name}
               </h1>
