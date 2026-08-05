@@ -41,22 +41,23 @@ async function main() {
   if (qErr) throw qErr;
   console.log("quote_requests insert:", quote.id);
 
-  // 3. HMAC verifier unit check
-  const secret = Buffer.from("test-secret-bytes").toString("base64");
-  const rawBody = '{"tracker":"track_demo"}';
-  const ts = new Date().toISOString();
-  const mac = createHmac("sha256", Buffer.from(secret, "base64"));
-  mac.update(ts);
-  mac.update(".");
-  mac.update(rawBody);
-  const sig = `sha256=${mac.digest("hex")}`;
+  // 3. HMAC verifier unit check (SHA512 of raw body, bare hex)
+  const secret = "test-webhook-secret";
+  const rawBody = '{"tracker":"track_demo","notification_id":"notif_demo"}';
+  const sig = createHmac("sha512", Buffer.from(secret, "utf8"))
+    .update(rawBody, "utf8")
+    .digest("hex");
   const ok = verifySafepayWebhookSignature({
-    secretBase64: secret,
+    secret,
     rawBody,
     signatureHeader: sig,
-    timestampHeader: ts,
   });
-  console.log("HMAC verify:", ok);
+  const bad = verifySafepayWebhookSignature({
+    secret,
+    rawBody,
+    signatureHeader: "deadbeef",
+  });
+  console.log("HMAC verify:", ok, "reject mismatch:", !bad.ok);
 
   // 4. Reserve-like path: hold + payment tracker + finalize (mock gateway)
   const checkIn = "2026-10-01";

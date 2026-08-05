@@ -27,16 +27,23 @@ if (!isRemoteTarget) {
 }
 
 // Refine admin stays local (out of OpenNext migration scope).
-webServers.push({
-  command: "npm run dev:admin",
-  url: ADMIN,
-  reuseExistingServer: !process.env.CI,
-  timeout: 180_000,
-});
+// Skip when targeting a remote site — webhook-only / storefront E2E do not need it.
+if (!isRemoteTarget) {
+  webServers.push({
+    command: "npm run dev:admin",
+    url: ADMIN,
+    reuseExistingServer: !process.env.CI,
+    timeout: 180_000,
+  });
+}
 
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: ["**/phase4-webhook-only.spec.ts"],
+  // phase4-webhook-only is opt-in: run explicitly against a deployed URL
+  //   PLAYWRIGHT_BASE_URL=https://guestay.pk npx playwright test e2e/phase4-webhook-only.spec.ts
+  testIgnore: process.env.PLAYWRIGHT_BASE_URL
+    ? []
+    : ["**/phase4-webhook-only.spec.ts"],
   fullyParallel: false,
   workers: 1,
   retries: 0,

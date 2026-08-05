@@ -75,6 +75,24 @@ export async function waitForBookingStatus(
   );
 }
 
+/** Prefer this over waitForBookingStatus(HOLD-…) — finalize rewrites reference to GST-*. */
+export async function waitForBookingStatusById(
+  bookingId: string,
+  allowed: string[],
+  timeoutMs = 90_000,
+): Promise<BookingRow> {
+  const deadline = Date.now() + timeoutMs;
+  let last: BookingRow | null = null;
+  while (Date.now() < deadline) {
+    last = await getBookingById(bookingId);
+    if (last && allowed.includes(last.status)) return last;
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  throw new Error(
+    `Booking ${bookingId} never reached ${allowed.join("|")} (last=${last?.status ?? "null"} ref=${last?.reference ?? "null"})`,
+  );
+}
+
 export async function latestPendingHoldForEmail(
   email: string,
 ): Promise<BookingRow | null> {
