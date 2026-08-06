@@ -21,6 +21,22 @@ export async function POST(req: Request) {
   const auth = await requireStaffRole(req, ["owner"]);
   if (!auth.ok) return applyAdminCors(req, auth.response);
 
+  try {
+    return await handleDecide(req, auth.userId);
+  } catch (err) {
+    console.error("[refunds/decide] unhandled", err);
+    return jsonWithAdminCors(
+      req,
+      {
+        error:
+          err instanceof Error ? err.message : "Refund decision failed",
+      },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleDecide(req: Request, actorId: string) {
   const body = await req.json();
   const { ticketId, decision, ownerNote, amountPkr, bookingId } = body as {
     ticketId: string;
@@ -76,7 +92,7 @@ export async function POST(req: Request) {
       status: decision === "deny" ? "denied" : "approved_processing",
       owner_note: ownerNote || null,
       decided_at: new Date().toISOString(),
-      decided_by: auth.userId,
+      decided_by: actorId,
     })
     .eq("id", ticketId);
 
@@ -84,7 +100,7 @@ export async function POST(req: Request) {
     action: decision === "deny" ? "refund_denied" : "refund_approved",
     table_name: "refund_requests",
     row_id: ticketId,
-    actor_id: auth.userId,
+    actor_id: actorId,
     after: {
       bookingId: resolvedBookingId,
       amountPkr: resolvedAmount,
@@ -115,20 +131,26 @@ export async function POST(req: Request) {
 
   let email: { ok: true } | { ok: false; error: string } | null = null;
   if (booking?.guestEmail) {
-    email = await sendRefundDecisionEmail({
-      to: booking.guestEmail,
-      guestName: booking.guestName,
-      decision,
-      amountPkr: resolvedAmount,
-      ownerNote,
-      reference: booking.reference,
-      ticketId,
-    });
-    if (!email.ok) {
-      console.error("[refund email] send failed", email.error, {
-        ticketId,
+    try {
+      email = await sendRefundDecisionEmail({
+        to: booking.guestEmail,
+        guestName: booking.guestName,
         decision,
+        amountPkr: resolvedAmount,
+        ownerNote,
+        reference: booking.reference,
+        ticketId,
       });
+      if (!email.ok) {
+        console.error("[refund email] send failed", email.error, {
+          ticketId,
+          decision,
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Email send threw";
+      console.error("[refund email] threw", message, { ticketId, decision });
+      email = { ok: false, error: message };
     }
   } else {
     console.warn("[refund email] skipped — no guest email on booking", {

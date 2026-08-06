@@ -16,17 +16,19 @@ let pooledTransport: Transporter | null = null;
 function getZohoTransport() {
   if (pooledTransport) return pooledTransport;
   const port = Number(process.env.ZOHO_SMTP_PORT || 465);
+  // No SMTP pooling — Workers isolate reuse leaves pooled sockets dead and can
+  // crash subsequent sends (seen on refund deny after approve).
   pooledTransport = nodemailer.createTransport({
-    pool: true,
     host: process.env.ZOHO_SMTP_HOST,
     port,
     secure: port === 465,
-    maxConnections: 1,
-    maxMessages: 100,
     auth: {
       user: process.env.ZOHO_SMTP_USER,
       pass: process.env.ZOHO_SMTP_PASS,
     },
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 20_000,
   });
   return pooledTransport;
 }
