@@ -39,7 +39,7 @@ export function RoomCard({
     <div className="relative aspect-[4/3] overflow-hidden bg-cream-200">
       <Image
         src={room.coverImage}
-        alt={room.name}
+        alt={`${categoryLabel[room.category]} interior at Guestay coliving, Sadaat Town Lahore Cantt — ${room.name}`}
         fill
         sizes="(max-width: 768px) 100vw, 33vw"
         className="object-cover transition-transform duration-500 ease-brand group-hover:scale-[1.03]"

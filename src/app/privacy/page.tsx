@@ -4,6 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "How Guestay collects and uses personal data.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

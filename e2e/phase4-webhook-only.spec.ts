@@ -13,7 +13,7 @@ import {
   cleanupTestArtifacts,
   ensureTestRoomActive,
   getBookingById,
-  waitForBookingStatus,
+  waitForBookingStatusById,
 } from "./helpers/supabase";
 import {
   bookTestRoomFromList,
@@ -65,21 +65,25 @@ test("webhook-only finalize with return page blocked", async ({ page }) => {
   await page.close();
 
   try {
-    const paid = await waitForBookingStatus(
-      reference,
+    const paid = await waitForBookingStatusById(
+      bookingId!,
       ["paid", "partially_paid"],
       180_000,
     );
     // eslint-disable-next-line no-console
     console.log(
-      `WEBHOOK_ONLY_PASS reference=${paid.reference} status=${paid.status}`,
+      `WEBHOOK_ONLY_PASS reference=${paid.reference} status=${paid.status} id=${paid.id}`,
     );
   } catch (e) {
+    const current = await getBookingById(bookingId!);
     // eslint-disable-next-line no-console
     console.log(
-      `WEBHOOK_ONLY_FAIL reference=${reference}: ${
-        e instanceof Error ? e.message : e
-      }`,
+      `WEBHOOK_ONLY_FAIL id=${bookingId} reference=${reference} current=${JSON.stringify(
+        {
+          status: current?.status,
+          reference: current?.reference,
+        },
+      )}: ${e instanceof Error ? e.message : e}`,
     );
     throw e;
   } finally {

@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
 import { AppChrome } from "@/components/layout/AppChrome";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { getSiteContact } from "@/lib/mock";
+import { buildLodgingBusinessJsonLd } from "@/lib/seo/schema";
+import {
+  absoluteUrl,
+  HOME_DESCRIPTION,
+  HOME_TITLE,
+} from "@/lib/seo/site";
 import "./globals.css";
 
 /**
@@ -9,17 +17,32 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Guestay | Shared Spaces, Better Living",
+    default: HOME_TITLE,
     template: "%s · Guestay",
   },
-  description:
-    "Book shared bedrooms and flats in Lahore Cantt. Clear duration-based rates, direct-booking deposit credit, and real people when you need them.",
-  metadataBase: new URL("https://guestay.pk"),
+  description: HOME_DESCRIPTION,
+  metadataBase: new URL(absoluteUrl()),
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
-    title: "Guestay | Shared Spaces, Better Living",
-    description:
-      "Coliving rooms and flats on Bedian Road — book online with clear pricing.",
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
     type: "website",
+    url: absoluteUrl(),
+    siteName: "Guestay",
+    locale: "en_PK",
+    images: [
+      {
+        url: "/brand/lockup-light.png",
+        alt: "Guestay coliving on Bedian Road, Sadaat Town Lahore Cantt",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: HOME_TITLE,
+    description: HOME_DESCRIPTION,
     images: ["/brand/lockup-light.png"],
   },
   icons: {
@@ -31,11 +54,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const contact = await getSiteContact();
+  const lodgingLd = buildLodgingBusinessJsonLd(contact);
+
   return (
     <html lang="en">
       <head>
@@ -53,6 +79,8 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-cream font-sans text-ink antialiased">
+        {/* JSON-LD in body is valid and reliably server-rendered in App Router */}
+        <JsonLd data={lodgingLd} />
         <AppChrome>{children}</AppChrome>
       </body>
     </html>

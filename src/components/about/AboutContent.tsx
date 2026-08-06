@@ -119,7 +119,7 @@ export function AboutContent() {
             <div className="relative aspect-[3/2] overflow-hidden rounded-card bg-cream-200 shadow-soft">
               <Image
                 src="/images/house-front.jpg"
-                alt="Guestay house front on Bedian Road"
+                alt="Guestay house front on Bedian Road, Sadaat Town Lahore Cantt"
                 fill
                 sizes="(max-width: 1024px) 100vw, 40vw"
                 className="object-cover object-center"

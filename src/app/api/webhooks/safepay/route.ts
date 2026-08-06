@@ -4,6 +4,7 @@ import {
 } from "@/lib/bookings/confirm";
 import { releaseRoomHold } from "@/lib/bookings/holds";
 import {
+  findPaymentByNotificationId,
   getLocalBooking,
   getLocalBookingByTracker,
   updateLocalBooking,
@@ -19,15 +20,16 @@ const FAILED_EVENT_TYPES = new Set([
 ]);
 
 /**
- * Safepay webhook — optional idempotent backup.
+ * Safepay webhook — the ONLY path that sets Safepay bookings to paid.
+ * HMAC-SHA512 of raw body (SAFEPAY_WEBHOOK_SECRET) required, then
+ * verifyTracker, then finalize. Retries are idempotent via notification_id
+ * on payments.gateway_payload (same alreadyReleased pattern as failed-payment)
+ * and finalizeSuccessfulBooking.alreadyFinalized.
  *
- * Testing stage: /checkout/return finalizes paid after verifyTracker.
- * This endpoint stays for production webhook delivery later; retries are
- * safe via finalizeSuccessfulBooking.alreadyFinalized.
- *
- * Dashboard setup (when re-enabling):
+ * Dashboard setup:
  * 1. Safepay → Developer → Webhooks → endpoint https://<site>/api/webhooks/safepay
  * 2. Copy webhook secret into SAFEPAY_WEBHOOK_SECRET
+ * 3. Browser /checkout/return only stamps gateway_tracker and shows processing.
  */
 /** Opt-in header dump — set SAFEPAY_WEBHOOK_DEBUG_HEADERS=1 on the worker. */
 function logIncomingWebhookHeaders(req: Request) {
@@ -41,13 +43,33 @@ function logIncomingWebhookHeaders(req: Request) {
       return;
     }
     dump[name] =
-      value.length > 200 ? `${value.slice(0, 120)}…[truncated len=${value.length}]` : value;
+      value.length > 200
+        ? `${value.slice(0, 120)}…[truncated len=${value.length}]`
+        : value;
   });
   console.info("[safepay webhook] DIAG_HEADERS", dump);
 }
 
+function extractNotificationId(payload: Record<string, unknown>): string | null {
+  const notification = payload.notification as
+    | Record<string, unknown>
+    | undefined;
+  const data = payload.data as Record<string, unknown> | undefined;
+  // Live Safepay deliveries use top-level `token` as the unique event id
+  // (no `notification_id` field). Prefer explicit notification_id when present.
+  return (
+    (typeof payload.notification_id === "string" && payload.notification_id) ||
+    (typeof payload.token === "string" && payload.token) ||
+    (typeof notification?.id === "string" && notification.id) ||
+    (typeof notification?.notification_id === "string" &&
+      notification.notification_id) ||
+    (typeof data?.notification_id === "string" && data.notification_id) ||
+    (typeof data?.token === "string" && data.token) ||
+    null
+  );
+}
+
 export async function POST(req: Request) {
-  // Diagnostic: log ALL headers before any signature logic (Step 1).
   logIncomingWebhookHeaders(req);
 
   const raw = await req.text();
@@ -70,19 +92,105 @@ export async function POST(req: Request) {
     req.headers.get("x-sfpy-signature") ||
     req.headers.get("x-safepay-signature") ||
     "";
-  const timestamp =
-    req.headers.get("x-sfpy-timestamp") ||
-    req.headers.get("x-safepay-timestamp") ||
-    "";
 
   const verifiedSig = verifySafepayWebhookSignature({
-    secretBase64: secret,
+    secret,
     rawBody: raw,
     signatureHeader: sig,
-    timestampHeader: timestamp,
   });
   if (!verifiedSig.ok) {
     console.warn("[safepay webhook] signature failed", verifiedSig.error);
+    if (process.env.SAFEPAY_WEBHOOK_DEBUG_HEADERS === "1") {
+      const { createHmac } = await import("crypto");
+      const ts =
+        req.headers.get("x-sfpy-timestamp") ||
+        req.headers.get("x-safepay-timestamp") ||
+        "";
+      const provided = sig.trim().toLowerCase();
+      const bodyBuf = Buffer.from(raw, "utf8");
+      const trials: Record<string, boolean> = {};
+      const check = (name: string, digest: string) => {
+        trials[name] =
+          digest === provided ||
+          `sha512=${digest}` === provided ||
+          `sha256=${digest}` === provided;
+      };
+      const utf8 = Buffer.from(secret, "utf8");
+      let b64: Buffer | null = null;
+      try {
+        b64 = Buffer.from(secret, "base64");
+        if (b64.length === 0) b64 = null;
+      } catch {
+        b64 = null;
+      }
+      check(
+        "utf8_sha512_body",
+        createHmac("sha512", utf8).update(bodyBuf).digest("hex"),
+      );
+      check(
+        "utf8_sha256_body",
+        createHmac("sha256", utf8).update(bodyBuf).digest("hex"),
+      );
+      if (/^[0-9a-fA-F]+$/.test(secret) && secret.length % 2 === 0) {
+        const hexKey = Buffer.from(secret, "hex");
+        check(
+          "hex_sha512_body",
+          createHmac("sha512", hexKey).update(bodyBuf).digest("hex"),
+        );
+        check(
+          "hex_sha256_body",
+          createHmac("sha256", hexKey).update(bodyBuf).digest("hex"),
+        );
+      }
+      if (b64) {
+        check(
+          "b64_sha512_body",
+          createHmac("sha512", b64).update(bodyBuf).digest("hex"),
+        );
+        check(
+          "b64_sha256_body",
+          createHmac("sha256", b64).update(bodyBuf).digest("hex"),
+        );
+      }
+      if (ts) {
+        check(
+          "utf8_sha512_ts_body",
+          createHmac("sha512", utf8)
+            .update(ts, "utf8")
+            .update(".", "utf8")
+            .update(bodyBuf)
+            .digest("hex"),
+        );
+        check(
+          "utf8_sha256_ts_body",
+          createHmac("sha256", utf8)
+            .update(ts, "utf8")
+            .update(".", "utf8")
+            .update(bodyBuf)
+            .digest("hex"),
+        );
+        if (b64) {
+          check(
+            "b64_sha256_ts_body",
+            createHmac("sha256", b64)
+              .update(ts, "utf8")
+              .update(".", "utf8")
+              .update(bodyBuf)
+              .digest("hex"),
+          );
+        }
+      }
+      console.warn("[safepay webhook] DIAG_SIG", {
+        error: verifiedSig.error,
+        sigLen: provided.length,
+        sigPrefix: provided.slice(0, 12),
+        bodyLen: bodyBuf.length,
+        hasTimestamp: Boolean(ts),
+        timestampLen: ts.length,
+        secretLen: secret.length,
+        trials,
+      });
+    }
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
@@ -97,6 +205,30 @@ export async function POST(req: Request) {
     | Record<string, unknown>
     | undefined;
   const data = payload.data as Record<string, unknown> | undefined;
+  const notificationId = extractNotificationId(payload);
+
+  console.info("[safepay webhook] signature verified", {
+    notificationId,
+    keys: Object.keys(payload),
+  });
+
+  // notification_id replay protection (replaces timestamp freshness check).
+  // Same idempotent success shape as failed-payment alreadyReleased.
+  if (notificationId) {
+    const prior = await findPaymentByNotificationId(notificationId);
+    if (prior) {
+      console.info("[safepay webhook] notification already processed", {
+        notificationId,
+        paymentId: prior.id,
+      });
+      return NextResponse.json({
+        received: true,
+        updated: false,
+        alreadyReleased: true,
+        alreadyProcessed: true,
+      });
+    }
+  }
 
   const eventType =
     (typeof payload.type === "string" && payload.type) ||
@@ -114,6 +246,7 @@ export async function POST(req: Request) {
   console.info("[safepay webhook]", {
     eventType: eventType || null,
     tracker,
+    notificationId,
     keys: Object.keys(payload),
   });
 
@@ -145,6 +278,7 @@ export async function POST(req: Request) {
       console.info("[safepay webhook] payment failed — hold already released", {
         eventType,
         tracker,
+        notificationId,
         bookingId: booking.id,
         statuses: siblings.map((b) => b.status),
       });
@@ -166,6 +300,7 @@ export async function POST(req: Request) {
           tracker: b.gatewayTracker || tracker,
           kind: b.paymentKind === "half" ? "deposit" : "full",
           status: "failed",
+          notificationId,
         });
       }
     }
@@ -173,6 +308,7 @@ export async function POST(req: Request) {
     console.info("[safepay webhook] payment failed — hold released", {
       eventType,
       tracker,
+      notificationId,
       bookingId: booking.id,
       siblingIds: siblings.map((b) => b.id),
     });
@@ -211,6 +347,14 @@ export async function POST(req: Request) {
     status,
     amounts,
     sessionUserId: booking.pendingSessionUserId || null,
+    notificationId,
+  });
+
+  console.info("[safepay webhook] finalized", {
+    tracker,
+    notificationId,
+    reference: finalized?.reference,
+    alreadyFinalized: finalized?.alreadyFinalized ?? false,
   });
 
   return NextResponse.json({

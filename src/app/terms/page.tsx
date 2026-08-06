@@ -4,6 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description: "Terms of Service for Guestay coliving bookings in Pakistan.",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {
