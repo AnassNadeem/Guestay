@@ -8,6 +8,7 @@ import { bookingWriteErrorMessage } from "@/lib/bookings/inventory-errors";
 import {
   generateBookingReference,
   generateHoldReference,
+  isFinalBookingReference,
 } from "@/lib/bookings/reference";
 import type { AccountLinkScenario } from "@/lib/mail/booking";
 import { createServiceSupabase, hasSupabase } from "@/lib/supabase/client";
@@ -350,6 +351,69 @@ export async function createLocalHold(input: {
   }
 
   return { booking: rowToLocal(data as DbBookingRow), quote };
+}
+
+/**
+ * Atomically mint HOLD-* → GST-* (+ terminal status). If another writer already
+ * claimed the hold (return page vs webhook race), returns the winner's row
+ * instead of overwriting the guest-facing reference.
+ */
+export async function claimHoldToFinal(
+  id: string,
+  patch: Partial<LocalBooking> & { reference: string; status: string },
+): Promise<LocalBooking | null> {
+  const sb = requireSupabase();
+  const existing = await getLocalBooking(id);
+  if (!existing) return null;
+
+  if (isFinalBookingReference(existing.reference)) {
+    return existing;
+  }
+
+  const metaPatch: BookingMeta = {};
+  if (patch.paymentKind !== undefined) metaPatch.paymentKind = patch.paymentKind;
+
+  const row: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+    reference: patch.reference,
+    status: patch.status,
+    hold_expires_at: null,
+  };
+  if (patch.amountPaidPkr !== undefined) row.amount_paid_pkr = patch.amountPaidPkr;
+  if (patch.amountDuePkr !== undefined) row.amount_due_pkr = patch.amountDuePkr;
+  if (Object.keys(metaPatch).length > 0) {
+    row.notes = serializeMeta(existing.notes, metaPatch);
+  }
+
+  const { data, error } = await sb
+    .from("bookings")
+    .update(row)
+    .eq("id", id)
+    .like("reference", "HOLD-%")
+    .select(SELECT)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[claimHoldToFinal]", error.message);
+    return getLocalBooking(id);
+  }
+  if (data) return rowToLocal(data as DbBookingRow);
+
+  // Lost the race — surface whatever reference won.
+  return getLocalBooking(id);
+}
+
+export async function listLocalBookingsByReference(
+  reference: string,
+): Promise<LocalBooking[]> {
+  const sb = requireSupabase();
+  const { data, error } = await sb
+    .from("bookings")
+    .select(SELECT)
+    .eq("reference", reference)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data || []).map((r) => rowToLocal(r as DbBookingRow));
 }
 
 export async function updateLocalBooking(

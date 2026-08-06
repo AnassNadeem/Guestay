@@ -41,6 +41,7 @@ export function RoomGallery({
             alt={`${baseAlt} — ${name}, photo ${active + 1}`}
             fill
             priority
+            quality={70}
             sizes="(max-width: 1024px) 100vw, 60vw"
             className="object-cover"
           />
@@ -90,6 +91,8 @@ export function RoomGallery({
                 alt={`${baseAlt} — thumbnail ${i + 1}`}
                 fill
                 sizes="120px"
+                quality={60}
+                loading="lazy"
                 className="object-cover"
               />
             </button>

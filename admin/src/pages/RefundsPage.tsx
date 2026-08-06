@@ -35,7 +35,7 @@ export function RefundsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function decide(id: string, decision: "approve" | "deny") {
+  function decide(refund: Refund, decision: "approve" | "deny") {
     if (!canDecideRefunds) return;
     const ownerNote =
       decision === "deny"
@@ -44,7 +44,7 @@ export function RefundsPage() {
     update(
       {
         resource: "refunds",
-        id,
+        id: refund.id,
         values: {
           status: decision === "approve" ? "approved_processing" : "denied",
           ownerNote,
@@ -57,7 +57,13 @@ export function RefundsPage() {
       await fetch(`${SITE_URL}/api/admin/refunds/decide`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ ticketId: id, decision, ownerNote }),
+        body: JSON.stringify({
+          ticketId: refund.id,
+          decision,
+          ownerNote,
+          bookingId: refund.bookingId,
+          amountPkr: refund.amountPkr,
+        }),
       }).catch(() => {});
       void refetchAudit();
     })();
@@ -195,10 +201,10 @@ export function RefundsPage() {
                 <div style={{ display: "flex", gap: 6, height: "fit-content" }}>
                   {canDecideRefunds && r.status === "pending" && (
                     <>
-                      <button type="button" className="btn" onClick={() => decide(r.id, "approve")}>
+                      <button type="button" className="btn" onClick={() => decide(r, "approve")}>
                         Approve
                       </button>
-                      <button type="button" className="btn secondary" onClick={() => decide(r.id, "deny")}>
+                      <button type="button" className="btn secondary" onClick={() => decide(r, "deny")}>
                         Deny
                       </button>
                     </>

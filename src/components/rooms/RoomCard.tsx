@@ -41,6 +41,8 @@ export function RoomCard({
         src={room.coverImage}
         alt={`${categoryLabel[room.category]} interior at Guestay coliving, Sadaat Town Lahore Cantt — ${room.name}`}
         fill
+        priority={index < 2}
+        quality={70}
         sizes="(max-width: 768px) 100vw, 33vw"
         className="object-cover transition-transform duration-500 ease-brand group-hover:scale-[1.03]"
       />

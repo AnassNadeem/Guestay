@@ -192,8 +192,10 @@ function RoomResultCard({
   return (
     <motion.article
       layout
-      initial={reveal && !reduced ? { opacity: 0, y: 12 } : false}
-      whileInView={reveal ? { opacity: 1, y: 0 } : undefined}
+      initial={
+        reveal && !reduced && index >= 2 ? { opacity: 0, y: 12 } : false
+      }
+      whileInView={reveal && index >= 2 ? { opacity: 1, y: 0 } : undefined}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.25, delay: index * 0.04, ease: "easeOut" }}
       className="group flex h-full flex-col overflow-hidden rounded-card bg-white/80 shadow-soft transition-all duration-150 ease-brand hover:-translate-y-1 hover:shadow-lift"
@@ -204,6 +206,8 @@ function RoomResultCard({
             src={room.coverImage}
             alt={`${categoryLabel[room.category]} interior at Guestay coliving, Sadaat Town Lahore Cantt — ${room.name}`}
             fill
+            priority={index < 2}
+            quality={70}
             sizes="(max-width: 768px) 100vw, 33vw"
             className="object-cover transition-transform duration-300 ease-brand group-hover:scale-105"
           />

@@ -89,7 +89,17 @@ export function buildLodgingBusinessJsonLd(contact: SiteContact) {
     geo: geo(),
     hasMap: contact.mapUrl,
     image: absoluteUrl("/brand/lockup-light.png"),
-    urlBookingPage: absoluteUrl("/rooms"),
+    potentialAction: {
+      "@type": "ReserveAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: absoluteUrl("/rooms"),
+        actionPlatform: [
+          "http://schema.org/DesktopWebPlatform",
+          "http://schema.org/MobileWebPlatform",
+        ],
+      },
+    },
     amenityFeature: HOUSE_AMENITY_FEATURES.map((a) => ({
       "@type": "LocationFeatureSpecification",
       name: a.name,
@@ -158,7 +168,10 @@ export function buildRoomJsonLd(room: Room, contact: SiteContact) {
       name: PROPERTY_NAME,
       address: postalAddress(contact),
       geo: geo(),
-      urlBookingPage: roomUrl,
+      potentialAction: {
+        "@type": "ReserveAction",
+        target: roomUrl,
+      },
     },
   };
 }

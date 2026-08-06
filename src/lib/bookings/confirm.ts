@@ -1,8 +1,9 @@
 import {
   attachPaidAt,
+  claimHoldToFinal,
   getLocalBooking,
   listBookingsByOrderId,
-  listLocalBookings,
+  listLocalBookingsByReference,
   updateLocalBooking,
   upsertPaymentForBooking,
   type LocalBooking,
@@ -47,10 +48,7 @@ export async function getOrderBookings(
 export async function getBookingsByReference(
   reference: string,
 ): Promise<LocalBooking[]> {
-  const all = await listLocalBookings();
-  const matched = all.filter(
-    (b) => b.reference === reference || b.orderReference === reference,
-  );
+  const matched = await listLocalBookingsByReference(reference);
   return attachPaidAt(matched);
 }
 
@@ -199,12 +197,13 @@ export async function finalizeSuccessfulBooking(opts: {
 
   const siblings = await getOrderBookings(seed);
 
+  const terminal = ["paid", "partially_paid", "confirmed_no_advance"] as const;
+
   // Fully done (status + mail) — safe no-op for webhook retries.
   if (
     siblings.every(
       (b) =>
-        isFinalBookingReference(b.reference) &&
-        ["paid", "partially_paid", "confirmed_no_advance"].includes(b.status),
+        isFinalBookingReference(b.reference) && terminal.includes(b.status as (typeof terminal)[number]),
     ) &&
     siblings.some((b) => b.confirmationNotifiedAt)
   ) {
@@ -216,7 +215,8 @@ export async function finalizeSuccessfulBooking(opts: {
     };
   }
 
-  const reference =
+  // Reuse an already-minted GST ref (concurrent writer) — never remint.
+  let reference =
     siblings.find((b) => isFinalBookingReference(b.reference))?.reference ||
     generateBookingReference();
 
@@ -239,20 +239,36 @@ export async function finalizeSuccessfulBooking(opts: {
       amountDuePkr = 0;
     }
 
-    await updateLocalBooking(b.id, {
-      reference,
-      orderReference: reference,
-      status: opts.status,
-      amountPaidPkr,
-      amountDuePkr,
-      holdExpiresAt: null,
-      paymentKind:
-        opts.status === "confirmed_no_advance"
-          ? "none"
-          : opts.status === "partially_paid"
-            ? "half"
-            : b.paymentKind || "full",
-    });
+    const paymentKind =
+      opts.status === "confirmed_no_advance"
+        ? "none"
+        : opts.status === "partially_paid"
+          ? "half"
+          : b.paymentKind || "full";
+
+    if (isFinalBookingReference(b.reference)) {
+      // Payment already claimed — sync amounts/status only; keep winner's ref.
+      reference = b.reference;
+      await updateLocalBooking(b.id, {
+        status: opts.status,
+        amountPaidPkr,
+        amountDuePkr,
+        holdExpiresAt: null,
+        paymentKind,
+      });
+    } else {
+      const claimed = await claimHoldToFinal(b.id, {
+        reference,
+        status: opts.status,
+        amountPaidPkr,
+        amountDuePkr,
+        paymentKind,
+      });
+      if (claimed && isFinalBookingReference(claimed.reference)) {
+        // May be our mint or a concurrent writer's — redirect must use the DB winner.
+        reference = claimed.reference;
+      }
+    }
 
     if (
       amountPaidPkr > 0 &&
@@ -272,7 +288,7 @@ export async function finalizeSuccessfulBooking(opts: {
     }
   }
 
-  const guest = siblings[0]!;
+  const guest = (await getLocalBooking(opts.bookingId)) || siblings[0]!;
   const link = await resolveAccountLink({
     guestEmail: guest.guestEmail,
     guestName: guest.guestName,

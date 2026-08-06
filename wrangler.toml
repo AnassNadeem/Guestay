@@ -33,6 +33,11 @@ custom_domain = true
 directory = ".open-next/assets"
 binding = "ASSETS"
 
+# Enables Next.js `/_next/image` optimization via Cloudflare Images (OpenNext).
+# Without this, remote room photos are proxied at full original size (multi‑MB).
+[images]
+binding = "IMAGES"
+
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "61c8fa16e635481096309f80d4bde4f8"
@@ -61,6 +66,9 @@ compatibility_flags = ["nodejs_compat"]
 [env.preview.assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+[env.preview.images]
+binding = "IMAGES"
 
 [[env.preview.kv_namespaces]]
 binding = "RATE_LIMIT_KV"
@@ -96,6 +104,9 @@ custom_domain = true
 [env.production.assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+[env.production.images]
+binding = "IMAGES"
 
 [[env.production.kv_namespaces]]
 binding = "RATE_LIMIT_KV"

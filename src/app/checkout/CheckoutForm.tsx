@@ -723,7 +723,40 @@ export function CheckoutForm() {
                 your booking; sandbox checkout currently completes on card.
               </p>
 
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div
+                role="radiogroup"
+                aria-label="Payment method"
+                className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+                onKeyDown={(e) => {
+                  const methods = [
+                    "card",
+                    "jazzcash",
+                    "easypaisa",
+                    "raast",
+                  ] as const;
+                  const idx = methods.indexOf(method);
+                  if (idx < 0) return;
+                  let next = idx;
+                  if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                    next = (idx + 1) % methods.length;
+                  } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                    next = (idx - 1 + methods.length) % methods.length;
+                  } else if (e.key === "Home") {
+                    next = 0;
+                  } else if (e.key === "End") {
+                    next = methods.length - 1;
+                  } else {
+                    return;
+                  }
+                  e.preventDefault();
+                  setMethod(methods[next]!);
+                  // Move focus to the newly selected radio
+                  const el = e.currentTarget.querySelector<HTMLElement>(
+                    `[data-pay-method="${methods[next]}"]`,
+                  );
+                  el?.focus();
+                }}
+              >
                 {(
                   [
                     ["card", "Card"],
@@ -731,20 +764,27 @@ export function CheckoutForm() {
                     ["easypaisa", "Easypaisa"],
                     ["raast", "Raast"],
                   ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setMethod(id)}
-                    className={`rounded-soft border px-3 py-3 text-sm font-medium transition-all ${
-                      method === id
-                        ? "border-olive bg-olive text-cream-50"
-                        : "border-olive/20 bg-white text-olive hover:border-olive/40"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+                ).map(([id, label]) => {
+                  const selected = method === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      data-pay-method={id}
+                      tabIndex={selected ? 0 : -1}
+                      onClick={() => setMethod(id)}
+                      className={`rounded-soft border px-3 py-3 text-sm font-medium transition-all ${
+                        selected
+                          ? "border-olive bg-olive text-cream-50"
+                          : "border-olive/20 bg-white text-olive hover:border-olive/40"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="rounded-soft border border-olive/10 bg-cream-100/60 p-4 text-sm text-ink-muted">

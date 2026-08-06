@@ -387,3 +387,107 @@ export async function sendMagicLinkEmail(input: {
 export function isBookingSmtpConfigured() {
   return smtpConfigured();
 }
+
+export type RefundDecisionMail = {
+  to: string;
+  guestName?: string;
+  decision: "approve" | "deny";
+  amountPkr?: number;
+  ownerNote?: string;
+  reference?: string;
+  ticketId?: string;
+};
+
+/**
+ * Guest-facing refund decision email (approve or deny).
+ * Same Zoho SMTP path as booking confirmations — not the retired email worker.
+ */
+export async function sendRefundDecisionEmail(
+  mail: RefundDecisionMail,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!smtpConfigured()) {
+    console.warn("[refund email] SMTP not configured — skipped", {
+      decision: mail.decision,
+      to: mail.to,
+      ticketId: mail.ticketId,
+    });
+    return { ok: false, error: "Email is not configured on the server." };
+  }
+
+  const { email: fromEmail, name: fromName } = bookingsFrom();
+  const name = mail.guestName?.trim() || "there";
+  const amountLine =
+    typeof mail.amountPkr === "number" && mail.amountPkr > 0
+      ? `Amount: ${formatCurrency(mail.amountPkr)}`
+      : null;
+  const refLine = mail.reference
+    ? `Booking reference: ${mail.reference}`
+    : null;
+
+  if (mail.decision === "deny") {
+    const subject = "Guestay — refund request update";
+    const text = [
+      `Hi ${name},`,
+      "",
+      "We've reviewed your refund request and are unable to approve it at this time.",
+      refLine,
+      amountLine,
+      mail.ownerNote ? "" : null,
+      mail.ownerNote ? `Note from our team: ${mail.ownerNote}` : null,
+      "",
+      "If you have questions, reply to this email or contact bookings@guestay.pk.",
+      "",
+      SAFETY_LINE,
+      "",
+      "— Guestay",
+      "bookings@guestay.pk",
+    ]
+      .filter((line): line is string => line !== null)
+      .join("\n");
+
+    return sendWithZoho({
+      fromEmail,
+      fromName,
+      to: mail.to,
+      subject,
+      text,
+      headers: {
+        "X-Guestay-Source": "refund-denied",
+        ...(mail.ticketId ? { "X-Guestay-Ticket": mail.ticketId } : {}),
+      },
+    });
+  }
+
+  const subject = "Guestay — refund approved, processing";
+  const text = [
+    `Hi ${name},`,
+    "",
+    "Your refund request has been approved and is being processed.",
+    "Funds are returned via the original payment method; timing depends on your bank.",
+    refLine,
+    amountLine,
+    mail.ownerNote ? "" : null,
+    mail.ownerNote ? `Note from our team: ${mail.ownerNote}` : null,
+    "",
+    "Questions? Contact bookings@guestay.pk.",
+    "",
+    SAFETY_LINE,
+    "",
+    "— Guestay",
+    "bookings@guestay.pk",
+  ]
+    .filter((line): line is string => line !== null)
+    .join("\n");
+
+  return sendWithZoho({
+    fromEmail,
+    fromName,
+    to: mail.to,
+    subject,
+    text,
+    headers: {
+      "X-Guestay-Source": "refund-approved",
+      ...(mail.ticketId ? { "X-Guestay-Ticket": mail.ticketId } : {}),
+    },
+  });
+}

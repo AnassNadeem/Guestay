@@ -103,7 +103,7 @@ export async function fillCheckoutGuest(
   await page.locator('label:has-text("Email") input').fill(opts.email);
   await page.locator('label:has-text("Phone") input').fill(opts.phone);
 
-  await page.getByRole("button", { name: /^Card$/i }).click();
+  await page.getByRole("radio", { name: /^Card$/i }).click();
 
   const tos = page.locator('input[type="checkbox"]').first();
   await tos.check();

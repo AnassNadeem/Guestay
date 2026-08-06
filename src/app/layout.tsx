@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import { AppChrome } from "@/components/layout/AppChrome";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getSiteContact } from "@/lib/mock";
@@ -10,10 +11,26 @@ import {
 } from "@/lib/seo/site";
 import "./globals.css";
 
-/**
- * Fonts: Space Grotesk / Inter / JetBrains Mono via CSS (see globals.css).
- * Avoids next/font Google fetch failures in offline / restricted CI.
- */
+const fontBody = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+  weight: ["400", "500", "600"],
+});
+
+const fontDisplay = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space",
+  display: "swap",
+  weight: ["400", "500", "600", "700"],
+});
+
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains",
+  display: "swap",
+  weight: ["400", "500"],
+});
 
 export const metadata: Metadata = {
   title: {
@@ -63,21 +80,10 @@ export default async function RootLayout({
   const lodgingLd = buildLodgingBusinessJsonLd(contact);
 
   return (
-    <html lang="en">
-      <head>
-        {/* eslint-disable-next-line @next/next/no-page-custom-font -- App Router root layout; next/font blocked offline */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html
+      lang="en"
+      className={`${fontBody.variable} ${fontDisplay.variable} ${fontMono.variable}`}
+    >
       <body className="min-h-screen bg-cream font-sans text-ink antialiased">
         {/* JSON-LD in body is valid and reliably server-rendered in App Router */}
         <JsonLd data={lodgingLd} />

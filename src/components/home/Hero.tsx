@@ -120,9 +120,11 @@ export function Hero() {
     reducedMotion
       ? { initial: false as const, animate: { opacity: 1, y: 0 } }
       : {
-          initial: { opacity: 0, y: 16 },
+          // Keep opacity at 1 so LCP text is paint-eligible immediately;
+          // only slide in (home LCP is the supporting paragraph).
+          initial: { opacity: 1, y: 12 },
           animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.6, delay, ease: easeBrand },
+          transition: { duration: 0.45, delay, ease: easeBrand },
         };
 
   return (
@@ -160,6 +162,7 @@ export function Hero() {
             alt="Guestay"
             width={280}
             height={56}
+            fetchPriority="high"
             className="h-11 w-auto sm:h-14 md:h-16"
           />
         </motion.div>

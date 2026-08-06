@@ -9,6 +9,7 @@ const emptyTransformer = path.resolve(__dirname, "stubs/empty-code-transformer.j
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       {
         protocol: "https",

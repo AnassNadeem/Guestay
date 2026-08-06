@@ -24,9 +24,9 @@
   --destructive: #b42318;
   --input: rgba(59, 68, 48, 0.12);
   --radius: 0.75rem;
-  --font-display: "Space Grotesk", system-ui, sans-serif;
-  --font-body: Inter, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: var(--font-space), "Space Grotesk", system-ui, sans-serif;
+  --font-body: var(--font-inter), Inter, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), "JetBrains Mono", ui-monospace, monospace;
 }
 
 html {

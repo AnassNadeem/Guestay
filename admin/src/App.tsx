@@ -25,6 +25,7 @@ import { WalkInPage } from "./pages/WalkInPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import { LoginPage } from "./pages/LoginPage";
+import { NotFoundPage } from "./pages/NotFoundPage";
 
 function AuthFallback() {
   const location = useLocation();
@@ -84,7 +85,9 @@ export function App() {
             <Route path="audit-log" element={<AuditLogPage />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Refine>
     </BrowserRouter>

@@ -58,3 +58,4 @@ cloudflare-env.d.ts.generated
 # local lighthouse / SEO smoke artifacts
 .lighthouse-reports/
 .lighthouse-tmp/
+.lighthouse/
